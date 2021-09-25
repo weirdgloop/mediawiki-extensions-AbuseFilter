@@ -444,7 +444,7 @@ class LazyVariableComputer {
 					[ 'ORDER BY' => 'rev_timestamp DESC, rev_id DESC',
 						'LIMIT' => 100,
 						// Force index per T116557
-						'USE INDEX' => [ 'revision' => 'page_timestamp' ],
+						'USE INDEX' => [ 'revision' => 'rev_page_timestamp' ],
 					],
 					$revQuery['joins']
 				);
