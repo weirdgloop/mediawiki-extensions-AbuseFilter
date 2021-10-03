@@ -66,7 +66,6 @@ class ApiAbuseFilterCheckMatch extends ApiBase {
 				__METHOD__
 			);
 
-			$permManager = MediaWikiServices::getInstance()->getPermissionManager();
 			if ( !$user->isAllowed( 'abusefilter-hidden-log' ) && SpecialAbuseLog::isHidden( $row ) ) {
 				// T223654 - Same check as in SpecialAbuseLog. Both the visibility of the AbuseLog entry
 				// and the corresponding revision are checked.
