@@ -64,6 +64,7 @@ class RCVariableGeneratorTest extends MediaWikiIntegrationTestCase {
 
 		switch ( $type ) {
 			case 'create':
+				$expectedValues['page_id'] = 0;
 				$expectedValues['old_wikitext'] = '';
 			// Fallthrough
 			case 'edit':
