@@ -1,12 +1,5 @@
 <?php
 /**
- * Created on Mar 29, 2009
- *
- * AbuseFilter extension
- *
- * Copyright © 2008 Alex Z. mrzmanwiki AT gmail DOT com
- * Based mostly on code by Bryan Tong Minh and Roan Kattouw
- *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -29,12 +22,16 @@ use ApiBase;
 use ApiQuery;
 use ApiQueryBase;
 use MediaWiki\Extension\AbuseFilter\AbuseFilterPermissionManager;
+use MediaWiki\Extension\AbuseFilter\AbuseFilterServices;
 use MWTimestamp;
 use Wikimedia\ParamValidator\ParamValidator;
 use Wikimedia\ParamValidator\TypeDef\IntegerDef;
 
 /**
  * Query module to list abuse filter details.
+ *
+ * @copyright 2009 Alex Z. <mrzmanwiki AT gmail DOT com>
+ * Based mostly on code by Bryan Tong Minh and Roan Kattouw
  *
  * @ingroup API
  * @ingroup Extensions
@@ -91,7 +88,12 @@ class QueryAbuseFilters extends ApiQueryBase {
 		$this->addFieldsIf( 'af_pattern', $fld_pattern );
 		$this->addFieldsIf( 'af_actions', $fld_actions );
 		$this->addFieldsIf( 'af_comments', $fld_comments );
-		$this->addFieldsIf( 'af_user_text', $fld_user );
+		if ( $fld_user ) {
+			$actorQuery = AbuseFilterServices::getActorMigration()->getJoin( 'af_user' );
+			$this->addTables( $actorQuery['tables'] );
+			$this->addFields( [ 'af_user_text' => $actorQuery['fields']['af_user_text'] ] );
+			$this->addJoinConds( $actorQuery['joins'] );
+		}
 		$this->addFieldsIf( 'af_timestamp', $fld_time );
 
 		$this->addOption( 'LIMIT', $params['limit'] + 1 );

@@ -1,18 +1,17 @@
 <?php
 
-namespace MediaWiki\Extension\AbuseFilter\Tests\Unit\Watcher;
+namespace MediaWiki\Extension\AbuseFilter\Tests\Integration\Watcher;
 
 use MediaWiki\Extension\AbuseFilter\CentralDBManager;
 use MediaWiki\Extension\AbuseFilter\Watcher\UpdateHitCountWatcher;
 use MediaWikiIntegrationTestCase;
 use Wikimedia\Rdbms\DBConnRef;
 use Wikimedia\Rdbms\IDatabase;
-use Wikimedia\Rdbms\ILoadBalancer;
+use Wikimedia\Rdbms\LBFactory;
 
 /**
  * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\Watcher\UpdateHitCountWatcher
  * @covers ::__construct
- * @todo Make this a unit test once DeferredUpdates uses DI (T265749)
  */
 class UpdateHitCountWatcherTest extends MediaWikiIntegrationTestCase {
 
@@ -30,8 +29,8 @@ class UpdateHitCountWatcherTest extends MediaWikiIntegrationTestCase {
 			[ 'af_hit_count=af_hit_count+1' ],
 			[ 'af_id' => $localFilters ]
 		);
-		$lb = $this->createMock( ILoadBalancer::class );
-		$lb->method( 'getConnectionRef' )->willReturn( $localDB );
+		$lb = $this->createMock( LBFactory::class );
+		$lb->method( 'getPrimaryDatabase' )->willReturn( $localDB );
 
 		$globalDB = $this->createMock( IDatabase::class );
 		$globalDB->expects( $this->once() )->method( 'update' )->with(

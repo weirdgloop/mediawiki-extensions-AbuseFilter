@@ -16,6 +16,7 @@ use MediaWiki\Session\Session;
 use MediaWiki\User\UserEditTracker;
 use MediaWiki\User\UserFactory;
 use MediaWiki\User\UserGroupManager;
+use MediaWiki\User\UserIdentityUtils;
 use MediaWikiUnitTestCase;
 use MessageLocalizer;
 use Psr\Log\NullLogger;
@@ -38,7 +39,8 @@ class ConsequencesFactoryTest extends MediaWikiUnitTestCase {
 				'BlockCIDRLimit' => [],
 			]
 		);
-		return new ConsequencesFactory(
+
+		$consequencesFactory = new ConsequencesFactory(
 			$opts,
 			new NullLogger(),
 			$this->createMock( BlockUserFactory::class ),
@@ -48,12 +50,14 @@ class ConsequencesFactoryTest extends MediaWikiUnitTestCase {
 			$this->createMock( ChangeTagger::class ),
 			$this->createMock( BlockAutopromoteStore::class ),
 			$this->createMock( FilterUser::class ),
-			$this->createMock( Session::class ),
 			$this->createMock( MessageLocalizer::class ),
 			$this->createMock( UserEditTracker::class ),
 			$this->createMock( UserFactory::class ),
-			'1.2.3.4'
+			$this->createMock( UserIdentityUtils::class )
 		);
+		$consequencesFactory->setSession( $this->createMock( Session::class ) );
+
+		return $consequencesFactory;
 	}
 
 	/**
@@ -116,7 +120,7 @@ class ConsequencesFactoryTest extends MediaWikiUnitTestCase {
 	 * @covers ::newTag
 	 */
 	public function testNewTag() {
-		$this->getFactory()->newTag( $this->createMock( Parameters::class ), null, [] );
+		$this->getFactory()->newTag( $this->createMock( Parameters::class ), [] );
 		$this->addToAssertionCount( 1 );
 	}
 }

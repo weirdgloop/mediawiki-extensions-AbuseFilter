@@ -11,6 +11,7 @@ use TextContent;
 /**
  * This service provides an interface to convert RevisionRecord and Content objects to some text
  * suitable for running abuse filters.
+ *
  * @internal No external code should rely on this representation
  */
 class TextExtractor {
@@ -90,7 +91,6 @@ class TextExtractor {
 		}
 
 		// T22310
-		$text = TextContent::normalizeLineEndings( (string)$text );
-		return $text;
+		return TextContent::normalizeLineEndings( (string)$text );
 	}
 }

@@ -66,6 +66,7 @@ class RCVariableGeneratorTest extends MediaWikiIntegrationTestCase {
 			case 'create':
 				$expectedValues['page_id'] = 0;
 				$expectedValues['old_wikitext'] = '';
+				$expectedValues['old_content_model'] = '';
 			// Fallthrough
 			case 'edit':
 				$status = $this->editPage( $title, 'Some new text for testing RC vars.', $summary, NS_MAIN, $user );
@@ -115,7 +116,7 @@ class RCVariableGeneratorTest extends MediaWikiIntegrationTestCase {
 				break;
 			case 'newusers':
 				$accountName = 'AbuseFilter dummy user';
-				$status = $this->createAccount( $accountName, $user, $action === 'autocreateaccount' );
+				$status = $this->createAccount( $accountName, $action === 'autocreateaccount', $user );
 				$rcConds['rc_logid'] = $status->value;
 
 				$expectedValues = [
@@ -186,7 +187,7 @@ class RCVariableGeneratorTest extends MediaWikiIntegrationTestCase {
 	 * Data provider for testGetVarsFromRCRow
 	 * @return array
 	 */
-	public function provideRCRowTypes() {
+	public static function provideRCRowTypes() {
 		return [
 			'edit' => [ 'edit', 'edit' ],
 			'create' => [ 'create', 'edit' ],
@@ -200,6 +201,7 @@ class RCVariableGeneratorTest extends MediaWikiIntegrationTestCase {
 
 	/**
 	 * @covers ::addEditVars
+	 * @covers ::addDerivedEditVars
 	 * @covers ::addEditVarsForRow
 	 * @covers ::addGenericVars
 	 * @covers \MediaWiki\Extension\AbuseFilter\Variables\LazyVariableComputer
@@ -246,10 +248,12 @@ class RCVariableGeneratorTest extends MediaWikiIntegrationTestCase {
 			'page_age' => 10,
 			'old_wikitext' => $oldText,
 			'old_size' => strlen( $oldText ),
-			'old_links' => [ $oldLink ],
+			'old_content_model' => 'wikitext',
+			'old_links' => [ "https://wikipedia.org/" ],
 			'new_wikitext' => $newText,
 			'new_size' => strlen( $newText ),
-			'all_links' => [ $newLink ],
+			'new_content_model' => 'wikitext',
+			'all_links' => [ "https://en.wikipedia.org/" ],
 			'timestamp' => (string)$timestamp,
 		];
 		foreach ( $expected as $var => $value ) {

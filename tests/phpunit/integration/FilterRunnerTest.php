@@ -1,6 +1,6 @@
 <?php
 
-namespace MediaWiki\Extension\AbuseFilter\Tests\Unit;
+namespace MediaWiki\Extension\AbuseFilter\Tests\Integration;
 
 use InvalidArgumentException;
 use MediaWiki\Config\ServiceOptions;
@@ -17,10 +17,11 @@ use MediaWiki\Extension\AbuseFilter\Parser\RuleCheckerFactory;
 use MediaWiki\Extension\AbuseFilter\VariableGenerator\VariableGeneratorFactory;
 use MediaWiki\Extension\AbuseFilter\Variables\VariableHolder;
 use MediaWiki\Extension\AbuseFilter\Variables\VariablesManager;
-use MediaWikiUnitTestCase;
+use MediaWiki\Title\Title;
+use MediaWikiIntegrationTestCase;
 use Psr\Log\NullLogger;
-use Title;
 use User;
+use WebRequest;
 
 /**
  * @group Test
@@ -28,11 +29,10 @@ use User;
  * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\FilterRunner
  * @covers ::__construct
  */
-class FilterRunnerTest extends MediaWikiUnitTestCase {
+class FilterRunnerTest extends MediaWikiIntegrationTestCase {
 	/**
 	 * @param ChangeTagger|null $changeTagger
 	 * @param EditStashCache|null $cache
-	 * @param array $options
 	 * @param VariableHolder|null $vars
 	 * @param string $group
 	 * @return FilterRunner
@@ -40,13 +40,12 @@ class FilterRunnerTest extends MediaWikiUnitTestCase {
 	private function getRunner(
 		ChangeTagger $changeTagger = null,
 		EditStashCache $cache = null,
-		$options = [],
 		VariableHolder $vars = null,
 		$group = 'default'
 	): FilterRunner {
 		$opts = new ServiceOptions(
 			FilterRunner::CONSTRUCTOR_OPTIONS,
-			$options + [
+			[
 				'AbuseFilterValidGroups' => [ 'default' ],
 				'AbuseFilterCentralDB' => false,
 				'AbuseFilterIsCentral' => false,
@@ -57,6 +56,10 @@ class FilterRunnerTest extends MediaWikiUnitTestCase {
 			$cache = $this->createMock( EditStashCache::class );
 			$cache->method( 'seek' )->willReturn( false );
 		}
+		$request = $this->createMock( WebRequest::class );
+		$request->method( 'getIP' )->willReturn( '127.0.0.1' );
+		$user = $this->createMock( User::class );
+		$user->method( 'getRequest' )->willReturn( $request );
 		return new FilterRunner(
 			new AbuseFilterHookRunner( $this->createHookContainer() ),
 			$this->createMock( FilterProfiler::class ),
@@ -72,7 +75,7 @@ class FilterRunnerTest extends MediaWikiUnitTestCase {
 			$cache,
 			new NullLogger(),
 			$opts,
-			$this->createMock( User::class ),
+			$user,
 			$this->createMock( Title::class ),
 			$vars ?? VariableHolder::newFromArray( [ 'action' => 'edit' ] ),
 			$group
@@ -86,7 +89,7 @@ class FilterRunnerTest extends MediaWikiUnitTestCase {
 		$invalidGroup = 'invalid-group';
 		$this->expectException( InvalidArgumentException::class );
 		$this->expectExceptionMessage( $invalidGroup );
-		$this->getRunner( null, null, [], new VariableHolder(), $invalidGroup );
+		$this->getRunner( null, null, new VariableHolder(), $invalidGroup );
 	}
 
 	/**
@@ -95,7 +98,7 @@ class FilterRunnerTest extends MediaWikiUnitTestCase {
 	public function testConstructor_noAction() {
 		$this->expectException( InvalidArgumentException::class );
 		$this->expectExceptionMessage( 'variable is not set' );
-		$this->getRunner( null, null, [], new VariableHolder() );
+		$this->getRunner( null, null, new VariableHolder() );
 	}
 
 	/**
@@ -116,6 +119,6 @@ class FilterRunnerTest extends MediaWikiUnitTestCase {
 		$changeTagger = $this->createMock( ChangeTagger::class );
 		$changeTagger->expects( $this->once() )->method( 'addConditionsLimitTag' );
 		$runner = $this->getRunner( $changeTagger, $cache );
-		$this->assertTrue( $runner->run()->isGood() );
+		$this->assertStatusGood( $runner->run() );
 	}
 }

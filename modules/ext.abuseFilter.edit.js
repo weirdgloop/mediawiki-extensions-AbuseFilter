@@ -403,6 +403,7 @@
 			inputPosition: 'outline',
 			allowArbitrary: true,
 			allowEditTags: true,
+
 			selected: config.values,
 			// The following messages are used here:
 			// * abusefilter-edit-throttle-placeholder
@@ -515,8 +516,7 @@
 					} ).observe( $filterBox[ 0 ] );
 				}
 
-				$switchEditorBtn.on( 'click', switchEditor );
-				$switchEditorBtn.show();
+				$switchEditorBtn.on( 'click', switchEditor ).show();
 			} );
 		}
 

@@ -12,7 +12,9 @@ use MediaWikiIntegrationTestCase;
 /**
  * @group Test
  * @group AbuseFilter
+ * @group Database
  * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\FilterValidator
+ * @covers ::__construct()
  */
 class FilterValidatorTest extends MediaWikiIntegrationTestCase {
 	/**
@@ -41,7 +43,7 @@ class FilterValidatorTest extends MediaWikiIntegrationTestCase {
 		$this->assertSame( $expected, $actualError );
 	}
 
-	public function provideAllTags() {
+	public static function provideAllTags() {
 		$invalidTags = [
 			'a|b',
 			'mw-undo',
