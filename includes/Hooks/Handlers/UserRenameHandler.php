@@ -11,6 +11,14 @@ class UserRenameHandler implements RenameUserSQLHook {
 	 * @inheritDoc
 	 */
 	public function onRenameUserSQL( RenameuserSQL $renameUserSql ): void {
+		// WGL - Handle RenameUser for abuse_filter_log too.
+		$renameUserSql->tablesJob['abuse_filter_log'] = [
+			RenameuserSQL::NAME_COL => 'afl_user_text',
+			RenameuserSQL::UID_COL => 'afl_user',
+			RenameuserSQL::TIME_COL => 'afl_timestamp',
+			'uniqueKey' => 'afl_id'
+		];
+
 		global $wgAbuseFilterActorTableSchemaMigrationStage;
 		if ( !( $wgAbuseFilterActorTableSchemaMigrationStage & SCHEMA_COMPAT_OLD ) ) {
 			return;
