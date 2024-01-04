@@ -14,7 +14,7 @@
 	"action-abusefilter-log": "боарамал сов леладеш долча хIамай тептарага хьажар",
 	"abusefilter-log-search-user": "Доакъашхо:",
 	"abusefilter-log-search-filter": "Фильтрий ID:",
-	"abusefilter-log-search-submit": "Хьалаха",
+	"abusefilter-log-search-submit": "Лаха",
 	"abusefilter-log-detailedentry-local": "луттарг $1",
 	"abusefilter-log-linkoncontribs": "харцахьа даь хIамаш тIадола тептар",
 	"abusefilter-log-hide-reason": "Бахьан:",
@@ -40,5 +40,5 @@
 	"abusefilter-examine-submit": "Лаха",
 	"abusefilter-topnav-log": "Харцахьа даь хIамаш тIадола тептар",
 	"abusefilter-diff-info": "Керттера бола хоам",
-	"abusefilter-group-default": "Юххьанцара хиннача тайпара"
+	"abusefilter-group-default": "Юххьанца мо"
 }
