@@ -46,7 +46,9 @@
 			"Verdy p",
 			"Yekrats",
 			"H78c67c",
-			"MusikAnimal"
+			"MusikAnimal",
+			"Chadyka",
+			"Dreamy Jazz"
 		]
 	},
 	"abusefilter-desc": "{{desc|name=Abuse Filter|url=https://www.mediawiki.org/wiki/Extension:AbuseFilter}}",
@@ -91,7 +93,7 @@
 	"action-abusefilter-hidden-log": "{{doc-action|abusefilter-hidden-log}}",
 	"action-abusefilter-modify-global": "{{doc-action|abusefilter-modify-global}}",
 	"abusefilter-log-summary": "This message is displayed at the top of the log overview page for extension AbuseFilter.",
-	"abusefilter-log-search": "Caption of a fieldset for filter definition on [[Special:AbuseLog]]",
+	"abusefilter-log-search": "Caption of a fieldset for filter definition on [[Special:AbuseLog]].",
 	"abusefilter-log-search-user": "Field label in abuse filter log page.\n{{Identical|User}}",
 	"abusefilter-log-search-group": "Field label in abuse filter log page.",
 	"abusefilter-log-search-group-any": "Option allowing to find entries from any group in abuse log.\n{{Identical|Any}}",
@@ -250,7 +252,7 @@
 	"abusefilter-edit-flags": "Field label for abuse filter flags (checkboxes for \"hidden\", \"enabled\" and \"deleted\").\n{{Identical|Flag}}",
 	"abusefilter-edit-enabled": "Checkbox label for a filter flag.",
 	"abusefilter-edit-deleted": "Checkbox label for a filter flag.",
-	"abusefilter-edit-hidden": "Checkbox label for a filter flag.",
+	"abusefilter-edit-hidden": "Checkbox label for a filter flag. Should be formulated consistently with {{msg-mw|Abusefilter-edit-protected}}.",
 	"abusefilter-edit-global": "Checkbox label for a filter flag.",
 	"abusefilter-edit-rules": "Field label for filter rules.\n{{Identical|Condition}}",
 	"abusefilter-edit-field-conditions": "Description for filter rules, to be used in error message.\n{{Identical|Condition}}",
