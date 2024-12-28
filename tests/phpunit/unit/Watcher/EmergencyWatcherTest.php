@@ -8,12 +8,12 @@ use MediaWiki\Extension\AbuseFilter\EmergencyCache;
 use MediaWiki\Extension\AbuseFilter\Filter\ExistingFilter;
 use MediaWiki\Extension\AbuseFilter\FilterLookup;
 use MediaWiki\Extension\AbuseFilter\Watcher\EmergencyWatcher;
+use MediaWiki\Utils\MWTimestamp;
 use MediaWikiUnitTestCase;
-use MWTimestamp;
 use Wikimedia\Rdbms\LBFactory;
 
 /**
- * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\Watcher\EmergencyWatcher
+ * @covers \MediaWiki\Extension\AbuseFilter\Watcher\EmergencyWatcher
  */
 class EmergencyWatcherTest extends MediaWikiUnitTestCase {
 
@@ -145,8 +145,6 @@ class EmergencyWatcherTest extends MediaWikiUnitTestCase {
 	}
 
 	/**
-	 * @covers ::getFiltersToThrottle
-	 * @covers ::getEmergencyValue
 	 * @dataProvider provideFiltersToThrottle
 	 */
 	public function testGetFiltersToThrottle(
@@ -174,9 +172,6 @@ class EmergencyWatcherTest extends MediaWikiUnitTestCase {
 		);
 	}
 
-	/**
-	 * @covers ::__construct
-	 */
 	public function testConstruct() {
 		$watcher = new EmergencyWatcher(
 			$this->createMock( EmergencyCache::class ),

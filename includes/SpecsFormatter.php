@@ -2,10 +2,10 @@
 
 namespace MediaWiki\Extension\AbuseFilter;
 
-use Language;
 use MediaWiki\Extension\AbuseFilter\Filter\AbstractFilter;
+use MediaWiki\Language\Language;
 use MediaWiki\Language\RawMessage;
-use Message;
+use MediaWiki\Message\Message;
 use MessageLocalizer;
 
 /**
@@ -84,7 +84,7 @@ class SpecsFormatter {
 			$displayAction = $lang->commaList( $messages );
 		} elseif ( $action === 'throttle' ) {
 			array_shift( $parameters );
-			list( $actions, $time ) = explode( ',', array_shift( $parameters ) );
+			[ $actions, $time ] = explode( ',', array_shift( $parameters ) );
 
 			// Join comma-separated groups in a commaList with a final "and", and convert to messages.
 			// Messages used here: abusefilter-throttle-ip, abusefilter-throttle-user,
@@ -147,10 +147,17 @@ class SpecsFormatter {
 			'enabled' => $filter->isEnabled(),
 			'deleted' => $filter->isDeleted(),
 			'hidden' => $filter->isHidden(),
+			'protected' => $filter->isProtected(),
 			'global' => $filter->isGlobal()
 		] );
 		$flagsDisplay = [];
 		foreach ( $flags as $flag => $_ ) {
+			// The following messages are generated here:
+			// * abusefilter-history-enabled
+			// * abusefilter-history-deleted
+			// * abusefilter-history-hidden
+			// * abusefilter-history-protected
+			// * abusefilter-history-global
 			$flagsDisplay[] = $this->messageLocalizer->msg( "abusefilter-history-$flag" )->escaped();
 		}
 

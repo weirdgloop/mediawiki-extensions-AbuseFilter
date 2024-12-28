@@ -2,8 +2,6 @@
 
 namespace MediaWiki\Extension\AbuseFilter\Tests\Unit;
 
-use HashBagOStuff;
-use IBufferingStatsdDataFactory;
 use MediaWiki\Config\ServiceOptions;
 use MediaWiki\Extension\AbuseFilter\AbuseLoggerFactory;
 use MediaWiki\Extension\AbuseFilter\ChangeTags\ChangeTagger;
@@ -21,20 +19,18 @@ use MediaWiki\Extension\AbuseFilter\Variables\VariablesManager;
 use MediaWiki\Extension\AbuseFilter\Watcher\EmergencyWatcher;
 use MediaWiki\Extension\AbuseFilter\Watcher\UpdateHitCountWatcher;
 use MediaWiki\Title\Title;
+use MediaWiki\User\User;
 use MediaWikiUnitTestCase;
 use Psr\Log\NullLogger;
-use User;
+use Wikimedia\ObjectCache\HashBagOStuff;
+use Wikimedia\Stats\IBufferingStatsdDataFactory;
 
 /**
  * @group Test
  * @group AbuseFilter
- * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\FilterRunnerFactory
+ * @covers \MediaWiki\Extension\AbuseFilter\FilterRunnerFactory
  */
 class FilterRunnerFactoryTest extends MediaWikiUnitTestCase {
-	/**
-	 * @covers ::__construct
-	 * @covers ::newRunner
-	 */
 	public function testNewRunner() {
 		$opts = new ServiceOptions(
 			FilterRunner::CONSTRUCTOR_OPTIONS,

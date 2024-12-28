@@ -2,11 +2,9 @@
 
 namespace MediaWiki\Extension\AbuseFilter\View;
 
-use BadMethodCallException;
-use Html;
 use HtmlArmor;
-use IContextSource;
-use Linker;
+use LogicException;
+use MediaWiki\Context\IContextSource;
 use MediaWiki\Extension\AbuseFilter\AbuseFilterPermissionManager;
 use MediaWiki\Extension\AbuseFilter\Consequences\ConsequencesRegistry;
 use MediaWiki\Extension\AbuseFilter\EditBox\EditBoxBuilderFactory;
@@ -20,15 +18,20 @@ use MediaWiki\Extension\AbuseFilter\FilterProfiler;
 use MediaWiki\Extension\AbuseFilter\FilterStore;
 use MediaWiki\Extension\AbuseFilter\InvalidImportDataException;
 use MediaWiki\Extension\AbuseFilter\SpecsFormatter;
+use MediaWiki\Html\Html;
+use MediaWiki\Linker\Linker;
 use MediaWiki\Linker\LinkRenderer;
 use MediaWiki\MainConfigNames;
 use MediaWiki\Permissions\PermissionManager;
+use MediaWiki\SpecialPage\SpecialPage;
+use MediaWiki\Xml\Xml;
 use OOUI;
-use SpecialBlock;
-use SpecialPage;
 use UnexpectedValueException;
+use Wikimedia\Rdbms\IDBAccessObject;
+use Wikimedia\Rdbms\IExpression;
 use Wikimedia\Rdbms\LBFactory;
-use Xml;
+use Wikimedia\Rdbms\LikeValue;
+use Wikimedia\Rdbms\SelectQueryBuilder;
 
 class AbuseFilterViewEdit extends AbuseFilterView {
 	/**
@@ -130,15 +133,15 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		$history_id = $this->historyID;
 		if ( $this->historyID ) {
 			$dbr = $this->lbFactory->getReplicaDatabase();
-			$lastID = (int)$dbr->selectField(
-				'abuse_filter_history',
-				'afh_id',
-				[
+			$lastID = (int)$dbr->newSelectQueryBuilder()
+				->select( 'afh_id' )
+				->from( 'abuse_filter_history' )
+				->where( [
 					'afh_filter' => $filter,
-				],
-				__METHOD__,
-				[ 'ORDER BY' => 'afh_id DESC' ]
-			);
+				] )
+				->orderBy( 'afh_id', SelectQueryBuilder::SORT_DESC )
+				->caller( __METHOD__ )
+				->fetchField();
 			// change $history_id to null if it's current version id
 			if ( $lastID === $this->historyID ) {
 				$history_id = null;
@@ -198,8 +201,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 
 		$tokenFilter = $filter === null ? 'new' : (string)$filter;
 		$editToken = $request->getVal( 'wpEditToken' );
-		$tokenMatches = $user->matchEditToken(
-			$editToken, [ 'abusefilter', $tokenFilter ], $request );
+		$tokenMatches = $this->getCsrfTokenSet()->matchToken( $editToken, [ 'abusefilter', $tokenFilter ] );
 
 		if ( !$tokenMatches ) {
 			// Token invalid or expired while the page was open, warn to retry
@@ -211,11 +213,10 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		$status = $this->filterStore->saveFilter( $user, $filter, $newFilter, $origFilter );
 
 		if ( !$status->isGood() ) {
-			$errors = $status->getErrors();
-			[ 'message' => $msg, 'params' => $params ] = $errors[0];
+			$msg = $status->getMessages()[0];
 			if ( $status->isOK() ) {
 				// Fixable error, show the editing interface
-				$error = Html::errorBox( $this->msg( $msg, $params )->parseAsBlock() );
+				$error = Html::errorBox( $this->msg( $msg )->parseAsBlock() );
 				$this->buildFilterEditor( $error, $newFilter, $filter, $history_id );
 			} else {
 				$this->showUnrecoverableError( $msg );
@@ -225,7 +226,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 			$out->redirect( $this->getTitle()->getLocalURL() );
 		} else {
 			// Everything went fine!
-			list( $new_id, $history_id ) = $status->getValue();
+			[ $new_id, $history_id ] = $status->getValue();
 			$out->redirect(
 				$this->getTitle()->getLocalURL(
 					[
@@ -239,12 +240,12 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 	}
 
 	/**
-	 * @param string $msgKey
+	 * @param string|\Wikimedia\Message\MessageSpecifier $msg
 	 */
-	private function showUnrecoverableError( string $msgKey ): void {
+	private function showUnrecoverableError( $msg ): void {
 		$out = $this->getOutput();
 
-		$out->addHTML( Html::errorBox( $this->msg( $msgKey )->parseAsBlock() ) );
+		$out->addHTML( Html::errorBox( $this->msg( $msg )->parseAsBlock() ) );
 		$href = $this->getTitle()->getFullURL();
 		$btn = new OOUI\ButtonWidget( [
 			'label' => $this->msg( 'abusefilter-return' )->text(),
@@ -279,14 +280,15 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		$user = $this->getUser();
 		$actions = $filterObj->getActions();
 
+		$isCreatingNewFilter = $filter === null;
 		$out->addSubtitle( $this->msg(
-			$filter === null ? 'abusefilter-edit-subtitle-new' : 'abusefilter-edit-subtitle',
-			$filter === null ? $filter : $this->getLanguage()->formatNum( $filter ),
+			$isCreatingNewFilter ? 'abusefilter-edit-subtitle-new' : 'abusefilter-edit-subtitle',
+			$isCreatingNewFilter ? $filter : $this->getLanguage()->formatNum( $filter ),
 			$history_id
 		)->parse() );
 
-		// We use filterHidden() to ensure that if a public filter is made private, the public
-		// revision is also hidden.
+		// Grab the current hidden flag from the DB, in case we're editing an older, public revision of a filter that is
+		// currently hidden, so that we can also hide that public revision.
 		if (
 			( $filterObj->isHidden() || (
 				$filter !== null && $this->filterLookup->getFilter( $filter, false )->isHidden() )
@@ -295,6 +297,31 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 			$out->addHTML( $this->msg( 'abusefilter-edit-denied' )->escaped() );
 			return;
 		}
+
+		// Filters that use protected variables should always be hidden from public view
+		if (
+			(
+				$filterObj->isProtected() ||
+				( $filter !== null && $this->filterLookup->getFilter( $filter, false )->isProtected() )
+			) &&
+			!$this->afPermManager->canViewProtectedVariables( $user )
+		) {
+			$out->addHTML( $this->msg( 'abusefilter-edit-denied-protected-vars' )->escaped() );
+			return;
+		}
+
+		if ( $isCreatingNewFilter ) {
+			$title = $this->msg( 'abusefilter-add' );
+		} elseif ( $this->afPermManager->canEditFilter( $user, $filterObj ) ) {
+			$title = $this->msg( 'abusefilter-edit-specific' )
+				->numParams( $this->filter )
+				->params( $filterObj->getName() );
+		} else {
+			$title = $this->msg( 'abusefilter-view-specific' )
+				->numParams( $this->filter )
+				->params( $filterObj->getName() );
+		}
+		$out->setPageTitleMsg( $title );
 
 		$readOnly = !$this->afPermManager->canEditFilter( $user, $filterObj );
 
@@ -312,7 +339,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		$fields = [];
 
 		$fields['abusefilter-edit-id'] =
-			$filter === null ?
+			$isCreatingNewFilter ?
 				$this->msg( 'abusefilter-edit-new' )->escaped() :
 				htmlspecialchars( $lang->formatNum( (string)$filter ) );
 		$fields['abusefilter-edit-description'] =
@@ -339,7 +366,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 				$options += [ $this->specsFormatter->nameGroup( $group ) => $group ];
 			}
 
-			$options = Xml::listDropDownOptionsOoui( $options );
+			$options = Html::listDropdownOptionsOoui( $options );
 			$groupSelector->setOptions( $options );
 
 			$fields['abusefilter-edit-group'] = $groupSelector;
@@ -395,7 +422,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 			] );
 
 		// Build checkboxes
-		$checkboxes = [ 'hidden', 'enabled', 'deleted' ];
+		$checkboxes = [ 'hidden', 'enabled', 'protected', 'deleted' ];
 		$flags = '';
 
 		if ( $this->getConfig()->get( 'AbuseFilterIsCentral' ) ) {
@@ -430,9 +457,10 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 			// * abusefilter-edit-enabled
 			// * abusefilter-edit-deleted
 			// * abusefilter-edit-hidden
+			// * abusefilter-edit-protected
 			// * abusefilter-edit-global
 			$message = "abusefilter-edit-$checkboxId";
-			// isEnabled(), isDeleted(), isHidden(), isGlobal()
+			// isEnabled(), isDeleted(), isHidden(), isProtected(), isGlobal()
 			$method = 'is' . ucfirst( $checkboxId );
 			$postVar = 'wpFilter' . ucfirst( $checkboxId );
 
@@ -449,6 +477,24 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 
 			if ( $checkboxId === 'global' && !$this->afPermManager->canEditGlobal( $user ) ) {
 				$checkboxAttribs['disabled'] = 'disabled';
+			}
+
+			if ( $checkboxId == 'protected' ) {
+				if ( !$this->afPermManager->canViewProtectedVariables( $user ) ) {
+					$checkboxAttribs['classes'] = [ 'oo-ui-element-hidden' ];
+					$labelAttribs['classes'] = [ 'oo-ui-element-hidden' ];
+				} elseif ( $filterObj->isProtected() ) {
+					$checkboxAttribs['disabled'] = true;
+					$labelAttribs['label'] = $this->msg(
+						'abusefilter-edit-protected-variable-already-protected'
+					)->text();
+				} else {
+					$labelAttribs['label'] = new OOUI\HtmlSnippet(
+						$this->msg( $message )->parse()
+					);
+					$labelAttribs['help'] = $this->msg( 'abusefilter-edit-protected-help-message' )->text();
+					$labelAttribs['helpInline'] = true;
+				}
 			}
 
 			// Set readonly on deleted if the filter isn't disabled
@@ -478,8 +524,8 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		if ( $filter !== null ) {
 			$tools = '';
 			if ( $this->afPermManager->canRevertFilterActions( $user ) ) {
-				$tools .= Xml::tags(
-					'p', null,
+				$tools .= Html::rawElement(
+					'p', [],
 					$this->linkRenderer->makeLink(
 						$this->getTitle( "revert/$filter" ),
 						new HtmlArmor( $this->msg( 'abusefilter-edit-revert' )->parse() )
@@ -489,8 +535,8 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 
 			if ( $this->afPermManager->canUseTestTools( $user ) ) {
 				// Test link
-				$tools .= Xml::tags(
-					'p', null,
+				$tools .= Html::rawElement(
+					'p', [],
 					$this->linkRenderer->makeLink(
 						$this->getTitle( "test/$filter" ),
 						new HtmlArmor( $this->msg( 'abusefilter-edit-test-link' )->parse() )
@@ -525,7 +571,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 				$this->linkRenderer->makeKnownLink( $this->getTitle( 'history/' . $filter ), $history_display );
 
 			$exportText = $this->filterImporter->encodeData( $filterObj, $actions );
-			$tools .= Xml::tags( 'a', [ 'href' => '#', 'id' => 'mw-abusefilter-export-link' ],
+			$tools .= Html::rawElement( 'a', [ 'href' => '#', 'id' => 'mw-abusefilter-export-link' ],
 				$this->msg( 'abusefilter-edit-export' )->parse() );
 			$tools .=
 				new OOUI\MultilineTextInputWidget( [
@@ -538,9 +584,11 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 			$fields['abusefilter-edit-tools'] = $tools;
 		}
 
-		// @phan-suppress-next-line SecurityCheck-DoubleEscaped taint-check still tracks keys and values together
-		$form = Xml::buildForm( $fields );
-		$form = Xml::fieldset( $this->msg( 'abusefilter-edit-main' )->text(), $form );
+		$form = Xml::fieldset(
+			$this->msg( 'abusefilter-edit-main' )->text(),
+			// TODO: deprecated, use OOUI or Codex widgets instead
+			Xml::buildForm( $fields )
+		);
 		$form .= Xml::fieldset(
 			$this->msg( 'abusefilter-edit-consequences' )->text(),
 			$this->buildConsequenceEditor( $filterObj, $actions )
@@ -558,11 +606,11 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 				] );
 			$form .= Html::hidden(
 				'wpEditToken',
-				$user->getEditToken( [ 'abusefilter', $urlFilter ] )
+				$this->getCsrfTokenSet()->getToken( [ 'abusefilter', $urlFilter ] )->toString()
 			);
 		}
 
-		$form = Xml::tags( 'form',
+		$form = Html::rawElement( 'form',
 			[
 				'action' => $this->getTitle( $urlFilter )->getFullURL(),
 				'method' => 'post',
@@ -574,7 +622,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		$out->addHTML( $form );
 
 		if ( $history_id ) {
-			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable
+			// @phan-suppress-next-line PhanPossiblyUndeclaredVariable,PhanTypeMismatchArgumentNullable
 			$out->addWikiMsg( $oldWarningMessage, $history_id, $filter );
 		}
 	}
@@ -647,7 +695,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 
 				if ( $set ) {
 					// @phan-suppress-next-line PhanTypeArraySuspiciousNullable $parameters is array here
-					list( $throttleCount, $throttlePeriod ) = explode( ',', $parameters[1], 2 );
+					[ $throttleCount, $throttlePeriod ] = explode( ',', $parameters[1], 2 );
 
 					$throttleGroups = array_slice( $parameters, 2 );
 				} else {
@@ -729,7 +777,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 				$this->getOutput()->addJsConfigVars( 'throttleConfig', $throttleConfig );
 
 				$throttleSettings .=
-					Xml::tags(
+					Html::rawElement(
 						'div',
 						[ 'id' => 'mw-abusefilter-throttle-parameters' ],
 						new OOUI\FieldsetLayout( [ 'items' => $throttleFields ] )
@@ -830,7 +878,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 								] )
 						] );
 				}
-				$previewHolder = Xml::tags(
+				$previewHolder = Html::rawElement(
 					'div',
 					[
 						// mw-abusefilter-warn-preview, mw-abusefilter-disallow-preview
@@ -841,7 +889,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 				);
 				$fields[] = $buttonGroup;
 				$output .=
-					Xml::tags(
+					Html::rawElement(
 						'div',
 						// mw-abusefilter-warn-parameters, mw-abusefilter-disallow-parameters
 						[ 'id' => "mw-abusefilter-$action-parameters" ],
@@ -899,7 +947,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 						]
 					);
 				$output .=
-					Xml::tags( 'div',
+					Html::rawElement( 'div',
 						[ 'id' => 'mw-abusefilter-tag-parameters' ],
 						$hiddenTags
 					);
@@ -907,7 +955,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 			case 'block':
 				if ( $set && count( $parameters ) === 3 ) {
 					// Both blocktalk and custom block durations available
-					list( $blockTalk, $defaultAnonDuration, $defaultUserDuration ) = $parameters;
+					[ $blockTalk, $defaultAnonDuration, $defaultUserDuration ] = $parameters;
 				} else {
 					if ( $set && count( $parameters ) === 1 ) {
 						// Only blocktalk available
@@ -917,7 +965,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 						$config->get( 'AbuseFilterBlockDuration' );
 					$defaultUserDuration = $config->get( 'AbuseFilterBlockDuration' );
 				}
-				$suggestedBlocks = SpecialBlock::getSuggestedDurations( null, false );
+				$suggestedBlocks = $this->getLanguage()->getBlockDurations( false );
 				$suggestedBlocks = self::normalizeBlocks( $suggestedBlocks );
 
 				$output = '';
@@ -938,7 +986,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 					);
 				$output .= $checkbox;
 
-				$suggestedBlocks = Xml::listDropDownOptionsOoui( $suggestedBlocks );
+				$suggestedBlocks = Html::listDropdownOptionsOoui( $suggestedBlocks );
 
 				$anonDuration =
 					new OOUI\DropdownInputWidget( [
@@ -991,7 +1039,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 						]
 					);
 
-				$output .= Xml::tags(
+				$output .= Html::rawElement(
 						'div',
 						[ 'id' => 'mw-abusefilter-block-parameters' ],
 						new OOUI\FieldsetLayout( [ 'items' => $blockOptions ] )
@@ -1066,15 +1114,15 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 			// Find other messages.
 			$dbr = $this->lbFactory->getReplicaDatabase();
 			$pageTitlePrefix = "Abusefilter-$action";
-			$titles = $dbr->selectFieldValues(
-				'page',
-				'page_title',
-				[
+			$titles = $dbr->newSelectQueryBuilder()
+				->select( 'page_title' )
+				->from( 'page' )
+				->where( [
 					'page_namespace' => 8,
-					'page_title LIKE ' . $dbr->addQuotes( $pageTitlePrefix . '%' )
-				],
-				__METHOD__
-			);
+					$dbr->expr( 'page_title', IExpression::LIKE, new LikeValue( $pageTitlePrefix, $dbr->anyString() ) )
+				] )
+				->caller( __METHOD__ )
+				->fetchFieldValues();
 
 			$lang = $this->getLanguage();
 			foreach ( $titles as $title ) {
@@ -1091,7 +1139,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		// abusefilter-edit-warn-other, abusefilter-edit-disallow-other
 		$options[ $this->msg( "abusefilter-edit-$formId-other" )->text() ] = 'other';
 
-		$options = Xml::listDropDownOptionsOoui( $options );
+		$options = Html::listDropdownOptionsOoui( $options );
 		$existingSelector->setOptions( $options );
 
 		$existingSelector =
@@ -1167,8 +1215,8 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 
 		$flags = $this->getRequest()->wasPosted()
 			// Load from primary database to avoid unintended reversions where there's replication lag.
-			? FilterLookup::READ_LATEST
-			: FilterLookup::READ_NORMAL;
+			? IDBAccessObject::READ_LATEST
+			: IDBAccessObject::READ_NORMAL;
 
 		return $this->filterLookup->getFilter( $id, false, $flags );
 	}
@@ -1200,7 +1248,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		$request = $this->getRequest();
 		if ( !$request->wasPosted() ) {
 			// Sanity
-			throw new BadMethodCallException( __METHOD__ . ' called without the request being POSTed.' );
+			throw new LogicException( __METHOD__ . ' called without the request being POSTed.' );
 		}
 
 		$origFilter = $this->loadFilterData( $filter );
@@ -1232,6 +1280,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		$newFilter->setDeleted( $request->getCheck( 'wpFilterDeleted' ) );
 		$newFilter->setEnabled( $request->getCheck( 'wpFilterEnabled' ) );
 		$newFilter->setHidden( $request->getCheck( 'wpFilterHidden' ) );
+		$newFilter->setProtected( $request->getCheck( 'wpFilterProtected' ) );
 		$newFilter->setGlobal( $request->getCheck( 'wpFilterGlobal' )
 			&& $this->getConfig()->get( 'AbuseFilterIsCentral' ) );
 
@@ -1249,7 +1298,7 @@ class AbuseFilterViewEdit extends AbuseFilterView {
 		$request = $this->getRequest();
 		if ( !$request->wasPosted() ) {
 			// Sanity
-			throw new BadMethodCallException( __METHOD__ . ' called without the request being POSTed.' );
+			throw new LogicException( __METHOD__ . ' called without the request being POSTed.' );
 		}
 
 		try {

@@ -5,23 +5,15 @@ namespace MediaWiki\Extension\AbuseFilter\Tests\Unit;
 use InvalidArgumentException;
 use MediaWiki\Extension\AbuseFilter\ActionSpecifier;
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\Title\TitleValue;
 use MediaWiki\User\UserIdentity;
 use MediaWiki\User\UserIdentityValue;
 use MediaWikiUnitTestCase;
-use TitleValue;
 
 /**
- * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\ActionSpecifier
+ * @covers \MediaWiki\Extension\AbuseFilter\ActionSpecifier
  */
 class ActionSpecifierTest extends MediaWikiUnitTestCase {
-	/**
-	 * @covers ::__construct
-	 * @covers ::getAction
-	 * @covers ::getTitle
-	 * @covers ::getUser
-	 * @covers ::getIP
-	 * @covers ::getAccountName
-	 */
 	public function testGetters() {
 		$action = 'edit';
 		$title = new TitleValue( NS_MAIN, 'Foobar' );
@@ -36,9 +28,6 @@ class ActionSpecifierTest extends MediaWikiUnitTestCase {
 		$this->assertSame( $accountname, $spec->getAccountName(), 'accountname' );
 	}
 
-	/**
-	 * @covers ::__construct
-	 */
 	public function testInvalidAccountName() {
 		$this->expectException( InvalidArgumentException::class );
 		new ActionSpecifier(

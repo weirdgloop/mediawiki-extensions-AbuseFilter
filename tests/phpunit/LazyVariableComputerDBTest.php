@@ -4,24 +4,17 @@ use MediaWiki\Extension\AbuseFilter\AbuseFilterServices;
 use MediaWiki\Extension\AbuseFilter\Variables\LazyLoadedVariable;
 use MediaWiki\Extension\AbuseFilter\Variables\VariableHolder;
 use MediaWiki\Permissions\UltimateAuthority;
+use MediaWiki\Title\Title;
 use MediaWiki\User\UserIdentityValue;
 
 /**
  * @group Test
  * @group AbuseFilter
  * @group Database
- * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\Variables\LazyVariableComputer
+ * @covers \MediaWiki\Extension\AbuseFilter\Variables\LazyVariableComputer
  * @todo Move to LazyVariableComputerTest
  */
 class LazyVariableComputerDBTest extends MediaWikiIntegrationTestCase {
-
-	/** @inheritDoc */
-	protected $tablesUsed = [
-		'page',
-		'text',
-		'user',
-		'recentchanges',
-	];
 
 	/**
 	 * Make different users edit a page, so that we can check their names against
@@ -55,10 +48,6 @@ class LazyVariableComputerDBTest extends MediaWikiIntegrationTestCase {
 		return $contributors;
 	}
 
-	/**
-	 * @covers ::compute
-	 * @covers ::getLastPageAuthors
-	 */
 	public function testRecentContributors() {
 		$varName = "page_recent_contributors";
 		$title = Title::makeTitle( NS_MAIN, "Page to test $varName" );

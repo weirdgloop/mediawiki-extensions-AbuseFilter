@@ -2,27 +2,30 @@
 
 namespace MediaWiki\Extension\AbuseFilter\Tests\Integration\Api;
 
-use ApiTestCase;
-use FormatJson;
+use MediaWiki\Extension\AbuseFilter\AbuseFilterServices;
+use MediaWiki\Extension\AbuseFilter\Filter\ExistingFilter;
+use MediaWiki\Extension\AbuseFilter\Filter\Flags;
+use MediaWiki\Extension\AbuseFilter\FilterLookup;
 use MediaWiki\Extension\AbuseFilter\Parser\Exception\InternalException;
 use MediaWiki\Extension\AbuseFilter\Parser\FilterEvaluator;
 use MediaWiki\Extension\AbuseFilter\Parser\ParserStatus;
 use MediaWiki\Extension\AbuseFilter\Parser\RuleCheckerFactory;
 use MediaWiki\Extension\AbuseFilter\Parser\RuleCheckerStatus;
+use MediaWiki\Extension\AbuseFilter\Variables\VariableHolder;
+use MediaWiki\Json\FormatJson;
+use MediaWiki\Tests\Api\ApiTestCase;
 use MediaWiki\Tests\Unit\Permissions\MockAuthorityTrait;
+use MediaWiki\Title\Title;
 
 /**
- * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\Api\CheckMatch
- * @covers ::__construct
+ * @covers \MediaWiki\Extension\AbuseFilter\Api\CheckMatch
+ * @group Database
  * @group medium
  */
 class CheckMatchTest extends ApiTestCase {
 	use AbuseFilterApiTestTrait;
 	use MockAuthorityTrait;
 
-	/**
-	 * @covers ::execute
-	 */
 	public function testExecute_noPermissions() {
 		$this->expectApiErrorCode( 'permissiondenied' );
 
@@ -44,7 +47,6 @@ class CheckMatchTest extends ApiTestCase {
 
 	/**
 	 * @dataProvider provideExecuteOk
-	 * @covers ::execute
 	 */
 	public function testExecute_Ok( bool $expected ) {
 		$filter = 'sampleFilter';
@@ -77,9 +79,6 @@ class CheckMatchTest extends ApiTestCase {
 		);
 	}
 
-	/**
-	 * @covers ::execute
-	 */
 	public function testExecute_error() {
 		$this->expectApiErrorCode( 'badsyntax' );
 		$filter = 'sampleFilter';
@@ -97,4 +96,33 @@ class CheckMatchTest extends ApiTestCase {
 		] );
 	}
 
+	public function testExecuteWhenPerformerCannotSeeLogId() {
+		// Mock the FilterLookup service to return that the filter with the ID 1 is hidden.
+		$mockLookup = $this->createMock( FilterLookup::class );
+		$mockLookup->method( 'getFilter' )
+			->with( 1, false )
+			->willReturnCallback( function () {
+				$filterObj = $this->createMock( ExistingFilter::class );
+				$filterObj->method( 'getPrivacyLevel' )->willReturn( Flags::FILTER_HIDDEN );
+				return $filterObj;
+			} );
+		$this->setService( FilterLookup::SERVICE_NAME, $mockLookup );
+		// Create an AbuseFilter log entry for the hidden filter
+		AbuseFilterServices::getAbuseLoggerFactory()->newLogger(
+			Title::newFromText( 'Testing' ),
+			$this->getTestUser()->getUser(),
+			VariableHolder::newFromArray( [ 'action' => 'edit' ] )
+		)->addLogEntries( [ 1 => [ 'warn' ] ] );
+		// Execute the API using a user with the 'abusefilter-modify' right but without the
+		// 'abusefilter-log-detail' right, while specifying a filter abuse filter log ID of 1
+		$this->expectApiErrorCode( 'cannotseedetails' );
+		$this->doApiRequest(
+			[
+				'action' => 'abusefiltercheckmatch',
+				'logid' => 1,
+				'filter' => 'invalidfilter=======',
+			],
+			null, false, $this->mockRegisteredAuthorityWithPermissions( [ 'abusefilter-modify' ] )
+		);
+	}
 }

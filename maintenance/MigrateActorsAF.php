@@ -8,11 +8,12 @@
 
 namespace MediaWiki\Extension\AbuseFilter\Maintenance;
 
-use LoggedUpdateMaintenance;
+use MediaWiki\Maintenance\LoggedUpdateMaintenance;
 use MediaWiki\MediaWikiServices;
 use stdClass;
 use Wikimedia\Rdbms\IDatabase;
-use Wikimedia\Rdbms\Platform\ISQLPlatform;
+use Wikimedia\Rdbms\IReadableDatabase;
+use Wikimedia\Rdbms\Subquery;
 
 /**
  * Maintenance script that migrates actors from AbuseFilter tables to the 'actor' table.
@@ -51,15 +52,6 @@ class MigrateActorsAF extends LoggedUpdateMaintenance {
 			$this->tables = explode( ',', $tables );
 		}
 
-		$stage = $this->getConfig()->get( 'AbuseFilterActorTableSchemaMigrationStage' );
-		if ( !( $stage & SCHEMA_COMPAT_WRITE_NEW ) ) {
-			$this->output(
-				'...cannot update while $wgAbuseFilterActorTableSchemaMigrationStage ' .
-				"lacks SCHEMA_COMPAT_WRITE_NEW\n"
-			);
-			return false;
-		}
-
 		$errors = 0;
 		$errors += $this->migrate( 'abuse_filter', 'af_id', 'af_user', 'af_user_text', 'af_actor' );
 		$errors += $this->migrate(
@@ -84,43 +76,40 @@ class MigrateActorsAF extends LoggedUpdateMaintenance {
 	 * @return array [ string $next, string $display ]
 	 */
 	private function makeNextCond( $dbw, $primaryKey, $row ) {
-		$next = '';
+		$conditions = [];
 		$display = [];
-		for ( $i = count( $primaryKey ) - 1; $i >= 0; $i-- ) {
-			$field = $primaryKey[$i];
+		foreach ( $primaryKey as $field ) {
 			$display[] = $field . '=' . $row->$field;
-			$value = $dbw->addQuotes( $row->$field );
-			if ( $next === '' ) {
-				$next = "$field > $value";
-			} else {
-				$next = "$field > $value OR $field = $value AND ($next)";
-			}
+			$conditions[$field] = $row->$field;
 		}
-		$display = implode( ' ', array_reverse( $display ) );
+		$next = $dbw->buildComparison( '>', $conditions );
+		$display = implode( ' ', $display );
 		return [ $next, $display ];
 	}
 
 	/**
 	 * Make the subqueries for `actor_id`
-	 * @param ISQLPlatform $dbw
+	 * @param IReadableDatabase $dbw
 	 * @param string $userField User ID field name
 	 * @param string $nameField User name field name
 	 * @return string SQL fragment
 	 */
-	private function makeActorIdSubquery( ISQLPlatform $dbw, $userField, $nameField ) {
-		$idSubquery = $dbw->buildSelectSubquery(
-			'actor',
-			'actor_id',
-			[ "$userField = actor_user" ],
-			__METHOD__
+	private function makeActorIdSubquery( IReadableDatabase $dbw, $userField, $nameField ) {
+		$idSubquery = $dbw->newSelectQueryBuilder()
+			->select( 'actor_id' )
+			->from( 'actor' )
+			->where( [ "$userField = actor_user" ] )
+			->caller( __METHOD__ );
+		$nameSubquery = $dbw->newSelectQueryBuilder()
+			->select( 'actor_id' )
+			->from( 'actor' )
+			->where( [ "$nameField = actor_name" ] )
+			->caller( __METHOD__ );
+		return $dbw->conditional(
+			$dbw->expr( $userField, '=', 0 )->or( $userField, '=', null ),
+			new Subquery( $nameSubquery->getSQL() ),
+			new Subquery( $idSubquery->getSQL() )
 		);
-		$nameSubquery = $dbw->buildSelectSubquery(
-			'actor',
-			'actor_id',
-			[ "$nameField = actor_name" ],
-			__METHOD__
-		);
-		return "CASE WHEN $userField = 0 OR $userField IS NULL THEN $nameSubquery ELSE $idSubquery END";
 	}
 
 	/**
@@ -144,16 +133,13 @@ class MigrateActorsAF extends LoggedUpdateMaintenance {
 		foreach ( $rows as $index => $row ) {
 			$keep[$index] = true;
 			if ( $row->actor_id === null ) {
-				// All registered users should have an actor_id already. So
-				// if we have a usable name here, it means they didn't run
-				// maintenance/cleanupUsersWithNoId.php
 				$name = $row->$nameField;
 				if ( $userNameUtils->isUsable( $name ) ) {
 					if ( !isset( $complainedAboutUsers[$name] ) ) {
 						$complainedAboutUsers[$name] = true;
 						$this->error(
 							"User name \"$name\" is usable, cannot create an anonymous actor for it."
-							. " Run maintenance/cleanupUsersWithNoId.php to fix this situation.\n"
+							. " Your database has likely been corrupted, and may require manual intervention.\n"
 						);
 					}
 					unset( $keep[$index] );
@@ -166,24 +152,24 @@ class MigrateActorsAF extends LoggedUpdateMaintenance {
 		$rows = array_intersect_key( $rows, $keep );
 
 		if ( $needActors ) {
-			$dbw->insert(
-				'actor',
-				array_map( static function ( $v ) {
+			$dbw->newInsertQueryBuilder()
+				->insertInto( 'actor' )
+				->ignore()
+				->rows( array_map( static function ( $v ) {
 					return [
 						'actor_name' => $v,
 					];
-				}, array_keys( $needActors ) ),
-				__METHOD__,
-				[ 'IGNORE' ]
-			);
+				}, array_keys( $needActors ) ) )
+				->caller( __METHOD__ )
+				->execute();
 			$countActors += $dbw->affectedRows();
 
-			$res = $dbw->select(
-				'actor',
-				[ 'actor_id', 'actor_name' ],
-				[ 'actor_name' => array_map( 'strval', array_keys( $needActors ) ) ],
-				__METHOD__
-			);
+			$res = $dbw->newSelectQueryBuilder()
+				->select( [ 'actor_id', 'actor_name' ] )
+				->from( 'actor' )
+				->where( [ 'actor_name' => array_map( 'strval', array_keys( $needActors ) ) ] )
+				->caller( __METHOD__ )
+				->fetchResultSet();
 			foreach ( $res as $row ) {
 				$needActors[$row->actor_name] = $row->actor_id;
 			}
@@ -229,8 +215,7 @@ class MigrateActorsAF extends LoggedUpdateMaintenance {
 		$this->output(
 			"Beginning migration of $table.$userField and $table.$nameField to $table.$actorField\n"
 		);
-		$lbFactory = MediaWikiServices::getInstance()->getDBLoadBalancerFactory();
-		$lbFactory->waitForReplication();
+		$this->waitForReplication();
 
 		$actorIdSubquery = $this->makeActorIdSubquery( $dbw, $userField, $nameField );
 		$next = '1=1';
@@ -239,19 +224,18 @@ class MigrateActorsAF extends LoggedUpdateMaintenance {
 		$countErrors = 0;
 		while ( true ) {
 			// Fetch the rows needing update
-			$res = $dbw->select(
-				$table,
-				array_merge( $primaryKey, [ $userField, $nameField, 'actor_id' => $actorIdSubquery ] ),
-				[
+			$res = $dbw->newSelectQueryBuilder()
+				->select( $primaryKey )
+				->fields( [ $userField, $nameField, 'actor_id' => $actorIdSubquery ] )
+				->from( $table )
+				->where( [
 					$actorField => 0,
 					$next,
-				],
-				__METHOD__,
-				[
-					'ORDER BY' => $primaryKey,
-					'LIMIT' => $this->mBatchSize,
-				]
-			);
+				] )
+				->orderBy( $primaryKey )
+				->limit( $this->mBatchSize )
+				->caller( __METHOD__ )
+				->fetchResultSet();
 			if ( !$res->numRows() ) {
 				break;
 			}
@@ -266,7 +250,7 @@ class MigrateActorsAF extends LoggedUpdateMaintenance {
 			// Update the existing rows
 			foreach ( $rows as $row ) {
 				if ( !$row->actor_id ) {
-					list( , $display ) = $this->makeNextCond( $dbw, $primaryKey, $row );
+					[ , $display ] = $this->makeNextCond( $dbw, $primaryKey, $row );
 					$this->error(
 						"Could not make actor for row with $display "
 						. "$userField={$row->$userField} $nameField={$row->$nameField}\n"
@@ -274,22 +258,22 @@ class MigrateActorsAF extends LoggedUpdateMaintenance {
 					$countErrors++;
 					continue;
 				}
-				$dbw->update(
-					$table,
-					[
+				$dbw->newUpdateQueryBuilder()
+					->update( $table )
+					->set( [
 						$actorField => $row->actor_id,
-					],
-					array_intersect_key( (array)$row, $pkFilter ) + [
+					] )
+					->where( array_intersect_key( (array)$row, $pkFilter ) + [
 						$actorField => 0
-					],
-					__METHOD__
-				);
+					] )
+					->caller( __METHOD__ )
+					->execute();
 				$countUpdated += $dbw->affectedRows();
 			}
 
-			list( $next, $display ) = $this->makeNextCond( $dbw, $primaryKey, $lastRow );
+			[ $next, $display ] = $this->makeNextCond( $dbw, $primaryKey, $lastRow );
 			$this->output( "... $display\n" );
-			$lbFactory->waitForReplication();
+			$this->waitForReplication();
 		}
 
 		$this->output(

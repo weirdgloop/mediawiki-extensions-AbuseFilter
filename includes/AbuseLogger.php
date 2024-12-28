@@ -2,18 +2,18 @@
 
 namespace MediaWiki\Extension\AbuseFilter;
 
-use DeferredUpdates;
-use ExtensionRegistry;
 use InvalidArgumentException;
 use ManualLogEntry;
 use MediaWiki\CheckUser\Hooks;
 use MediaWiki\Config\ServiceOptions;
+use MediaWiki\Deferred\DeferredUpdates;
 use MediaWiki\Extension\AbuseFilter\Variables\VariableHolder;
 use MediaWiki\Extension\AbuseFilter\Variables\VariablesBlobStore;
 use MediaWiki\Extension\AbuseFilter\Variables\VariablesManager;
+use MediaWiki\Registration\ExtensionRegistry;
 use MediaWiki\Title\Title;
+use MediaWiki\User\User;
 use MediaWiki\User\UserIdentityValue;
-use User;
 use Profiler;
 use Wikimedia\Rdbms\IDatabase;
 use Wikimedia\Rdbms\LBFactory;
@@ -121,7 +121,7 @@ class AbuseLogger {
 		$loggedGlobalFilters = [];
 
 		foreach ( $actionsTaken as $filter => $actions ) {
-			list( $filterID, $global ) = GlobalNameUtils::splitGlobalName( $filter );
+			[ $filterID, $global ] = GlobalNameUtils::splitGlobalName( $filter );
 			$thisLog = $logTemplate;
 			$thisLog['afl_filter_id'] = $filterID;
 			$thisLog['afl_global'] = (int)$global;
@@ -229,7 +229,11 @@ class AbuseLogger {
 		$loggedIDs = [];
 		foreach ( $logRows as $data ) {
 			$data['afl_var_dump'] = $varDump;
-			$dbw->insert( 'abuse_filter_log', $data, __METHOD__ );
+			$dbw->newInsertQueryBuilder()
+				->insertInto( 'abuse_filter_log' )
+				->row( $data )
+				->caller( __METHOD__ )
+				->execute();
 			$loggedIDs[] = $data['afl_id'] = $dbw->insertId();
 
 			// Send data to CheckUser if installed and we
@@ -237,8 +241,6 @@ class AbuseLogger {
 			if ( ExtensionRegistry::getInstance()->isLoaded( 'CheckUser' )
 				&& strpos( $this->options->get( 'AbuseFilterNotifications' ), 'rc' ) === false
 			) {
-				global $wgCheckUserLogAdditionalRights;
-				$wgCheckUserLogAdditionalRights[] = 'abusefilter-view';
 				$entry = $this->newLocalLogEntryFromData( $data );
 				$user = $entry->getPerformerIdentity();
 				// Invert the hack from ::buildLogTemplate because CheckUser attempts
@@ -291,7 +293,11 @@ class AbuseLogger {
 
 		$loggedIDs = [];
 		foreach ( $centralLogRows as $row ) {
-			$fdb->insert( 'abuse_filter_log', $row, __METHOD__ );
+			$fdb->newInsertQueryBuilder()
+				->insertInto( 'abuse_filter_log' )
+				->row( $row )
+				->caller( __METHOD__ )
+				->execute();
 			$loggedIDs[] = $fdb->insertId();
 		}
 		return $loggedIDs;

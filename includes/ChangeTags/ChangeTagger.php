@@ -3,9 +3,9 @@
 namespace MediaWiki\Extension\AbuseFilter\ChangeTags;
 
 use MediaWiki\Extension\AbuseFilter\ActionSpecifier;
+use MediaWiki\Title\TitleValue;
 use MediaWiki\User\UserIdentityValue;
 use RecentChange;
-use TitleValue;
 
 /**
  * Class that collects change tags to be later applied
@@ -98,6 +98,7 @@ class ChangeTagger {
 
 		$logType = $recentChange->getAttribute( 'rc_log_type' ) ?: 'edit';
 		if ( $logType === 'newusers' ) {
+			// XXX: as of 1.43, the following is never true
 			$action = $recentChange->getAttribute( 'rc_log_action' ) === 'autocreate' ?
 				'autocreateaccount' :
 				'createaccount';

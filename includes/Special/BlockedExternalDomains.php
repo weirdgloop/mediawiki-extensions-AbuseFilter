@@ -20,13 +20,14 @@
 namespace MediaWiki\Extension\AbuseFilter\Special;
 
 use ErrorPageError;
-use Html;
-use HTMLForm;
-use IDBAccessObject;
 use MediaWiki\Extension\AbuseFilter\BlockedDomainStorage;
+use MediaWiki\Html\Html;
+use MediaWiki\HTMLForm\HTMLForm;
+use MediaWiki\SpecialPage\SpecialPage;
+use MediaWiki\Title\TitleValue;
 use PermissionsError;
-use SpecialPage;
-use WANObjectCache;
+use Wikimedia\ObjectCache\WANObjectCache;
+use Wikimedia\Rdbms\IDBAccessObject;
 
 /**
  * List and manage blocked external domains
@@ -112,11 +113,19 @@ class BlockedExternalDomains extends SpecialPage {
 		}
 
 		$content = Html::element( 'th', [], $this->msg( 'abusefilter-blocked-domains-domain-header' )->text() ) .
-			Html::element( 'th', [], $this->msg( 'abusefilter-blocked-domains-notes-header' )->text() ) .
-			( $userCanManage ?
-				Html::element( 'th', [ 'class' => 'unsortable' ],
-						   $this->msg( 'abusefilter-blocked-domains-actions-header' )->text() ) :
-				'' );
+			Html::element( 'th', [], $this->msg( 'abusefilter-blocked-domains-notes-header' )->text() );
+		if ( $userCanManage ) {
+			$content .= Html::element(
+				'th',
+				[],
+				$this->msg( 'abusefilter-blocked-domains-addedby-header' )->text()
+			);
+			$content .= Html::element(
+				'th',
+				[ 'class' => 'unsortable' ],
+				$this->msg( 'abusefilter-blocked-domains-actions-header' )->text()
+			);
+		}
 		$thead = Html::rawElement( 'tr', [], $content );
 
 		// Parsing each row is expensive, put it behind WAN cache
@@ -157,17 +166,27 @@ class BlockedExternalDomains extends SpecialPage {
 	 * @return string HTML for the row
 	 */
 	private function doDomainRow( $domain, $showManageActions ) {
-		$newRow = '';
-		$newRow .= Html::rawElement( 'td', [], Html::element( 'code', [], $domain['domain'] ) );
+		$newRow = Html::rawElement( 'td', [], Html::element( 'code', [], $domain['domain'] ) );
 
 		$newRow .= Html::rawElement( 'td', [], $this->getOutput()->parseInlineAsInterface( $domain['notes'] ) );
 
 		if ( $showManageActions ) {
+			if ( isset( $domain['addedBy'] ) ) {
+				$addedBy = $this->getLinkRenderer()->makeLink(
+					new TitleValue( 3, $domain['addedBy'] ),
+					$domain['addedBy']
+				);
+			} else {
+				$addedBy = '';
+			}
+			$newRow .= Html::rawElement( 'td', [], $addedBy );
+
 			$actionLink = $this->getLinkRenderer()->makeKnownLink(
 				$this->getPageTitle( 'remove' ),
 				$this->msg( 'abusefilter-blocked-domains-remove' )->text(),
 				[],
-				[ 'domain' => $domain['domain'] ] );
+				[ 'domain' => $domain['domain'] ]
+			);
 			$newRow .= Html::rawElement( 'td', [], $actionLink );
 		}
 
@@ -324,6 +343,7 @@ class BlockedExternalDomains extends SpecialPage {
 		return 'spam';
 	}
 
+	/** @inheritDoc */
 	public function isListed() {
 		return $this->getConfig()->get( 'AbuseFilterEnableBlockedExternalDomain' );
 	}

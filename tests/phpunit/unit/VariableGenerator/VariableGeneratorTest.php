@@ -9,9 +9,10 @@ use MediaWiki\Extension\AbuseFilter\VariableGenerator\VariableGenerator;
 use MediaWiki\Extension\AbuseFilter\Variables\LazyLoadedVariable;
 use MediaWiki\Extension\AbuseFilter\Variables\VariableHolder;
 use MediaWiki\Title\Title;
+use MediaWiki\User\User;
+use MediaWiki\User\UserFactory;
 use MediaWiki\User\UserIdentity;
 use MediaWikiUnitTestCase;
-use User;
 use WikiPage;
 
 /**
@@ -19,41 +20,44 @@ use WikiPage;
  * @group AbuseFilter
  * @group AbuseFilterGeneric
  *
- * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\VariableGenerator\VariableGenerator
- * @covers ::__construct
+ * @covers \MediaWiki\Extension\AbuseFilter\VariableGenerator\VariableGenerator
  */
 class VariableGeneratorTest extends MediaWikiUnitTestCase {
-	/**
-	 * @covers ::getVariableHolder
-	 */
 	public function testGetVariableHolder() {
 		$holder = new VariableHolder();
 		$generator = new VariableGenerator(
 			$this->createMock( AbuseFilterHookRunner::class ),
+			$this->createMock( UserFactory::class ),
 			$holder
 		);
 		$this->assertSame( $holder, $generator->getVariableHolder() );
 	}
 
-	/**
-	 * @covers ::addUserVars
-	 */
 	public function testAddUserVars() {
 		$user = $this->createMock( User::class );
 		$userName = 'Some user';
 		$user->method( 'getName' )->willReturn( $userName );
+		$mockUserFactory = $this->createMock( UserFactory::class );
+		$mockUserFactory->method( 'newFromUserIdentity' )->willReturnArgument( 0 );
+
 		$expectedKeys = [
 			'user_editcount',
 			'user_name',
 			'user_emailconfirm',
+			'user_type',
 			'user_groups',
 			'user_rights',
 			'user_blocked',
-			'user_age'
+			'user_age',
+			'user_unnamed_ip',
 		];
 
 		$variableHolder = new VariableHolder();
-		$generator = new VariableGenerator( $this->createMock( AbuseFilterHookRunner::class ), $variableHolder );
+		$generator = new VariableGenerator(
+			$this->createMock( AbuseFilterHookRunner::class ),
+			$mockUserFactory,
+			$variableHolder
+		);
 		$actualVars = $generator->addUserVars( $user )->getVariableHolder()->getVars();
 		$this->assertArrayEquals( $expectedKeys, array_keys( $actualVars ) );
 		$this->assertSame( $userName, $actualVars['user_name']->toNative(), 'user_name' );
@@ -65,11 +69,13 @@ class VariableGeneratorTest extends MediaWikiUnitTestCase {
 	 * @param string $prefix
 	 * @param Title $title
 	 * @param array $expected
-	 * @covers ::addTitleVars
 	 * @dataProvider provideTitleVarsNotLazy
 	 */
 	public function testAddTitleVars_notLazy( string $prefix, Title $title, array $expected ) {
-		$generator = new VariableGenerator( $this->createMock( AbuseFilterHookRunner::class ) );
+		$generator = new VariableGenerator(
+			$this->createMock( AbuseFilterHookRunner::class ),
+			$this->createMock( UserFactory::class )
+		);
 		$actualVars = $generator->addTitleVars( $title, $prefix )->getVariableHolder()->getVars();
 		$computedVars = [];
 		foreach ( $actualVars as $name => $value ) {
@@ -105,12 +111,14 @@ class VariableGeneratorTest extends MediaWikiUnitTestCase {
 	/**
 	 * @param string $prefix
 	 * @param array $expectedKeys
-	 * @covers ::addTitleVars
 	 * @dataProvider provideTitleVarsLazy
 	 */
 	public function testAddTitleVars_lazy( string $prefix, array $expectedKeys ) {
 		$title = $this->createMock( Title::class );
-		$generator = new VariableGenerator( $this->createMock( AbuseFilterHookRunner::class ) );
+		$generator = new VariableGenerator(
+			$this->createMock( AbuseFilterHookRunner::class ),
+			$this->createMock( UserFactory::class )
+		);
 		$actualVars = $generator->addTitleVars( $title, $prefix )->getVariableHolder()->getVars();
 		$lazyVars = [];
 		foreach ( $actualVars as $name => $value ) {
@@ -137,9 +145,6 @@ class VariableGeneratorTest extends MediaWikiUnitTestCase {
 		}
 	}
 
-	/**
-	 * @covers ::addGenericVars
-	 */
 	public function testAddGenericVars() {
 		$expectedKeys = [
 			'timestamp',
@@ -147,7 +152,10 @@ class VariableGeneratorTest extends MediaWikiUnitTestCase {
 			'wiki_language',
 		];
 
-		$generator = new VariableGenerator( $this->createMock( AbuseFilterHookRunner::class ) );
+		$generator = new VariableGenerator(
+			$this->createMock( AbuseFilterHookRunner::class ),
+			$this->createMock( UserFactory::class )
+		);
 		$actualVars = $generator->addGenericVars()->getVariableHolder()->getVars();
 		$this->assertArrayEquals( $expectedKeys, array_keys( $actualVars ) );
 	}
@@ -158,8 +166,6 @@ class VariableGeneratorTest extends MediaWikiUnitTestCase {
 	}
 
 	/**
-	 * @covers ::addEditVars
-	 * @covers ::addDerivedEditVars
 	 * @dataProvider provideForFilter
 	 */
 	public function testAddEditVars( bool $forFilter ) {
@@ -180,7 +186,10 @@ class VariableGeneratorTest extends MediaWikiUnitTestCase {
 			'new_pst',
 			'new_html',
 		];
-		$generator = new VariableGenerator( $this->createMock( AbuseFilterHookRunner::class ) );
+		$generator = new VariableGenerator(
+			$this->createMock( AbuseFilterHookRunner::class ),
+			$this->createMock( UserFactory::class )
+		);
 		$actualVars = $generator->addEditVars(
 			$this->createMock( WikiPage::class ),
 			$this->createMock( UserIdentity::class ),

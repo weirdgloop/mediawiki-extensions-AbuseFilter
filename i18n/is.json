@@ -6,8 +6,8 @@
 			"Maxí",
 			"S.Örvarr.S",
 			"Snævar",
-			"Sveinn í Felli",
-			"Stefán Örvar Sigmundsson"
+			"Stefán Örvar Sigmundsson",
+			"Sveinn í Felli"
 		]
 	},
 	"abusefilter-desc": "Beitir sjálfvirkri brjóstvitsfræði á breytingar.",
@@ -185,7 +185,6 @@
 	"abusefilter-edit-builder-op-bool-not": "Ekki (!)",
 	"abusefilter-edit-builder-op-bool-and": "Og (&)",
 	"abusefilter-edit-builder-op-bool-or": "Eða (|)",
-	"abusefilter-edit-builder-op-bool-xor": "XOR (^)",
 	"abusefilter-edit-builder-group-misc": "Ýmislegt",
 	"abusefilter-edit-builder-group-funcs": "Aðgerðir",
 	"abusefilter-edit-builder-funcs-length": "Strengjalengd (length)",
@@ -275,7 +274,7 @@
 	"abusefilter-examine-notfound": "Breytingin sem þú tilgreindir fannst ekki.",
 	"abusefilter-examine-incompatible": "Breytingin sem þú tilgreindir er ekki studd af misnotkunar síunni.",
 	"abusefilter-examine-noresults": "Engar niðurstöður fundust með þeim leitarskilmálum sem þú tilgreindir.",
-	"abusefilter-topnav": "'''Valmynd misnotkunar síunnar'''",
+	"abusefilter-topnav": "'''Misnotkunarsíuflakk'''",
 	"abusefilter-topnav-home": "Heim",
 	"abusefilter-topnav-test": "Bunka prófun",
 	"abusefilter-topnav-examine": "Prófa síðustu breytingar",
@@ -305,6 +304,7 @@
 	"abusefilter-blocked-domains-domain-header": "Lén",
 	"abusefilter-blocked-domains-notes-header": "Athugasemdir",
 	"abusefilter-blocked-domains-actions-header": "Aðgerðir",
+	"abusefilter-blocked-domains-addedby-header": "Bætt við af",
 	"abusefilter-blocked-domains-remove": "fjarlægja",
 	"abusefilter-blocked-domains-remove-title": "Fjarlægja hindrað lén",
 	"abusefilter-blocked-domains-remove-explanation-initial": "Á þessari síður getur þú fjarlægt hindrað lén",

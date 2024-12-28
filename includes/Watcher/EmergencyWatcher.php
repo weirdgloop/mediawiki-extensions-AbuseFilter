@@ -2,10 +2,10 @@
 
 namespace MediaWiki\Extension\AbuseFilter\Watcher;
 
-use AutoCommitUpdate;
-use DeferredUpdates;
 use InvalidArgumentException;
 use MediaWiki\Config\ServiceOptions;
+use MediaWiki\Deferred\AutoCommitUpdate;
+use MediaWiki\Deferred\DeferredUpdates;
 use MediaWiki\Extension\AbuseFilter\EchoNotifier;
 use MediaWiki\Extension\AbuseFilter\EmergencyCache;
 use MediaWiki\Extension\AbuseFilter\FilterLookup;
@@ -142,12 +142,12 @@ class EmergencyWatcher implements Watcher {
 				$this->lbFactory->getPrimaryDatabase(),
 				__METHOD__,
 				static function ( IDatabase $dbw, $fname ) use ( $throttleFilters ) {
-					$dbw->update(
-						'abuse_filter',
-						[ 'af_throttled' => 1 ],
-						[ 'af_id' => $throttleFilters ],
-						$fname
-					);
+					$dbw->newUpdateQueryBuilder()
+						->update( 'abuse_filter' )
+						->set( [ 'af_throttled' => 1 ] )
+						->where( [ 'af_id' => $throttleFilters ] )
+						->caller( $fname )
+						->execute();
 				}
 			)
 		);

@@ -2,13 +2,16 @@
 
 namespace MediaWiki\Extension\AbuseFilter\Variables;
 
-use ContentHandler;
-use Language;
+use MediaWiki\Content\ContentHandler;
+use MediaWiki\Content\TextContent;
 use MediaWiki\Extension\AbuseFilter\Hooks\AbuseFilterHookRunner;
 use MediaWiki\Extension\AbuseFilter\Parser\AFPData;
 use MediaWiki\Extension\AbuseFilter\TextExtractor;
 use MediaWiki\ExternalLinks\ExternalLinksLookup;
 use MediaWiki\ExternalLinks\LinkFilter;
+use MediaWiki\Language\Language;
+use MediaWiki\Parser\ParserFactory;
+use MediaWiki\Parser\ParserOptions;
 use MediaWiki\Permissions\PermissionManager;
 use MediaWiki\Permissions\RestrictionStore;
 use MediaWiki\Revision\RevisionLookup;
@@ -17,22 +20,23 @@ use MediaWiki\Revision\RevisionStore;
 use MediaWiki\Revision\SlotRecord;
 use MediaWiki\Storage\PreparedUpdate;
 use MediaWiki\Title\Title;
+use MediaWiki\User\ExternalUserNames;
+use MediaWiki\User\User;
 use MediaWiki\User\UserEditTracker;
 use MediaWiki\User\UserGroupManager;
 use MediaWiki\User\UserIdentity;
-use ParserFactory;
-use ParserOptions;
+use MediaWiki\User\UserIdentityUtils;
 use Psr\Log\LoggerInterface;
 use stdClass;
 use StringUtils;
-use TextContent;
 use UnexpectedValueException;
-use User;
-use WANObjectCache;
 use Wikimedia\Diff\Diff;
 use Wikimedia\Diff\UnifiedDiffFormatter;
+use Wikimedia\IPUtils;
+use Wikimedia\ObjectCache\WANObjectCache;
 use Wikimedia\Rdbms\Database;
 use Wikimedia\Rdbms\LBFactory;
+use Wikimedia\Rdbms\SelectQueryBuilder;
 use WikiPage;
 
 /**
@@ -87,6 +91,9 @@ class LazyVariableComputer {
 	/** @var RestrictionStore */
 	private $restrictionStore;
 
+	/** @var UserIdentityUtils */
+	private $userIdentityUtils;
+
 	/** @var string */
 	private $wikiID;
 
@@ -104,6 +111,7 @@ class LazyVariableComputer {
 	 * @param UserGroupManager $userGroupManager
 	 * @param PermissionManager $permissionManager
 	 * @param RestrictionStore $restrictionStore
+	 * @param UserIdentityUtils $userIdentityUtils
 	 * @param string $wikiID
 	 */
 	public function __construct(
@@ -120,6 +128,7 @@ class LazyVariableComputer {
 		UserGroupManager $userGroupManager,
 		PermissionManager $permissionManager,
 		RestrictionStore $restrictionStore,
+		UserIdentityUtils $userIdentityUtils,
 		string $wikiID
 	) {
 		$this->textExtractor = $textExtractor;
@@ -135,6 +144,7 @@ class LazyVariableComputer {
 		$this->userGroupManager = $userGroupManager;
 		$this->permissionManager = $permissionManager;
 		$this->restrictionStore = $restrictionStore;
+		$this->userIdentityUtils = $userIdentityUtils;
 		$this->wikiID = $wikiID;
 	}
 
@@ -188,6 +198,15 @@ class LazyVariableComputer {
 					}
 				}
 				break;
+			case 'array-diff':
+				$baseVar = $parameters['base-var'];
+				$minusVar = $parameters['minus-var'];
+
+				$baseArray = $getVarCB( $baseVar )->toNative();
+				$minusArray = $getVarCB( $minusVar )->toNative();
+
+				$result = array_diff( $baseArray, $minusArray );
+				break;
 			case 'links-from-wikitext':
 				// This should ONLY be used when sharing a parse operation with the edit.
 
@@ -220,7 +239,7 @@ class LazyVariableComputer {
 				// this inference is ugly, but the name isn't accessible from here
 				// and we only want this for debugging
 				$textVar = $parameters['text-var'];
-				$varName = strpos( $textVar, 'old_' ) === 0 ? 'old_links' : 'all_links';
+				$varName = str_starts_with( $textVar, 'old_' ) ? 'old_links' : 'all_links';
 				if ( $parameters['forFilter'] ?? false ) {
 					$this->logger->debug( "Loading $varName from DB" );
 					$links = $this->getLinksFromDB( $article );
@@ -260,21 +279,6 @@ class LazyVariableComputer {
 				$article = $parameters['article'];
 				$this->logger->debug( 'Loading old_links from DB' );
 				$result = $this->getLinksFromDB( $article );
-				break;
-			case 'link-diff-added':
-			case 'link-diff-removed':
-				$oldLinkVar = $parameters['oldlink-var'];
-				$newLinkVar = $parameters['newlink-var'];
-
-				$oldLinks = $getVarCB( $oldLinkVar )->toNative();
-				$newLinks = $getVarCB( $newLinkVar )->toNative();
-
-				if ( $varMethod === 'link-diff-added' ) {
-					$result = array_diff( $newLinks, $oldLinks );
-				}
-				if ( $varMethod === 'link-diff-removed' ) {
-					$result = array_diff( $oldLinks, $newLinks );
-				}
 				break;
 			case 'parse-wikitext':
 				// Should ONLY be used when sharing a parse operation with the edit.
@@ -341,6 +345,42 @@ class LazyVariableComputer {
 				$title = $parameters['title'];
 				$result = $this->restrictionStore->getRestrictions( $title, $action );
 				break;
+			case 'user-unnamed-ip':
+				$user = $parameters['user'];
+				$result = null;
+
+				// Don't return an IP for past events (eg. revisions, logs)
+				// This could leak IPs to users who don't have IP viewing rights
+				if ( !$parameters['rc'] &&
+					// Reveal IPs for:
+					// - temporary accounts: temporary account names will replace the IP in the `user_name`
+					//   variable. This variable restores this access.
+					// - logged-out users: This supports the transition to the use of temporary accounts
+					//   so that filter maintainers on pre-transition wikis can migrate `user_name` to `user_unnamed_ip`
+					//   where necessary and see no disruption on transition.
+					//
+					// This variable should only ever be exposed for these use cases and shouldn't be extended
+					// to registered accounts, as that would leak account PII to users without the right to see
+					// that information
+					( $this->userIdentityUtils->isTemp( $user ) || IPUtils::isIPAddress( $user->getName() ) ) ) {
+					$result = $user->getRequest()->getIP();
+				}
+				break;
+			case 'user-type':
+				/** @var UserIdentity $userIdentity */
+				$userIdentity = $parameters['user-identity'];
+				if ( $this->userIdentityUtils->isNamed( $userIdentity ) ) {
+					$result = 'named';
+				} elseif ( $this->userIdentityUtils->isTemp( $userIdentity ) ) {
+					$result = 'temp';
+				} elseif ( IPUtils::isIPAddress( $userIdentity->getName() ) ) {
+					$result = 'ip';
+				} elseif ( ExternalUserNames::isExternal( $userIdentity->getName() ) ) {
+					$result = 'external';
+				} else {
+					$result = 'unknown';
+				}
+				break;
 			case 'user-editcount':
 				/** @var UserIdentity $userIdentity */
 				$userIdentity = $parameters['user-identity'];
@@ -394,6 +434,40 @@ class LazyVariableComputer {
 
 				$asOf = $parameters['asof'];
 				$result = (int)wfTimestamp( TS_UNIX, $asOf ) - (int)wfTimestamp( TS_UNIX, $firstRevisionTime );
+				break;
+			case 'revision-age-by-id':
+				$timestamp = $this->revisionLookup->getTimestampFromId( $parameters['revid'] );
+				if ( !$timestamp ) {
+					$result = null;
+					break;
+				}
+				$asOf = $parameters['asof'];
+				$result = (int)wfTimestamp( TS_UNIX, $asOf ) - (int)wfTimestamp( TS_UNIX, $timestamp );
+				break;
+			case 'revision-age-by-title':
+				/** @var Title $title */
+				$title = $parameters['title'];
+				$revRec = $this->revisionLookup->getRevisionByTitle( $title );
+				if ( !$revRec ) {
+					$result = null;
+					break;
+				}
+				$asOf = $parameters['asof'];
+				$result = (int)wfTimestamp( TS_UNIX, $asOf ) - (int)wfTimestamp( TS_UNIX, $revRec->getTimestamp() );
+				break;
+			case 'previous-revision-age':
+				$revRec = $this->revisionLookup->getRevisionById( $parameters['revid'] );
+				if ( !$revRec ) {
+					$result = null;
+					break;
+				}
+				$prev = $this->revisionLookup->getPreviousRevision( $revRec );
+				if ( !$prev ) {
+					$result = null;
+					break;
+				}
+				$asOf = $parameters['asof'] ?? $revRec->getTimestamp();
+				$result = (int)wfTimestamp( TS_UNIX, $asOf ) - (int)wfTimestamp( TS_UNIX, $prev->getTimestamp() );
 				break;
 			case 'length':
 				$s = $getVarCB( $parameters['length-var'] )->toString();
@@ -470,24 +544,23 @@ class LazyVariableComputer {
 				$setOpts += Database::getCacheSetOptions( $dbr );
 				// Get the last 100 edit authors with a trivial query (avoid T116557)
 				$revQuery = $this->revisionStore->getQueryInfo();
-				$revAuthors = $dbr->selectFieldValues(
-					$revQuery['tables'],
-					$revQuery['fields']['rev_user_text'],
-					[
+				$revAuthors = $dbr->newSelectQueryBuilder()
+					->tables( $revQuery['tables'] )
+					->field( $revQuery['fields']['rev_user_text'] )
+					->where( [
 						'rev_page' => $title->getArticleID(),
 						// TODO Should deleted names be counted in the 10 authors? If yes, this check should
 						// be moved inside the foreach
 						'rev_deleted' => 0
-					],
-					$fname,
+					] )
+					->caller( $fname )
 					// Some pages have < 10 authors but many revisions (e.g. bot pages)
-					[ 'ORDER BY' => 'rev_timestamp DESC, rev_id DESC',
-						'LIMIT' => 100,
-						// Force index per T116557
-						'USE INDEX' => [ 'revision' => 'rev_page_timestamp' ],
-					],
-					$revQuery['joins']
-				);
+					->orderBy( [ 'rev_timestamp', 'rev_id' ], SelectQueryBuilder::SORT_DESC )
+					->limit( 100 )
+					// Force index per T116557
+					->useIndex( [ 'revision' => 'rev_page_timestamp' ] )
+					->joinConds( $revQuery['joins'] )
+					->fetchFieldValues();
 				// Get the last 10 distinct authors within this set of edits
 				$users = [];
 				foreach ( $revAuthors as $author ) {

@@ -10,13 +10,13 @@ use MediaWiki\Extension\AbuseFilter\Consequences\Consequence\RangeBlock;
 use MediaWiki\Extension\AbuseFilter\Consequences\Parameters;
 use MediaWiki\Extension\AbuseFilter\Filter\ExistingFilter;
 use MediaWiki\Extension\AbuseFilter\FilterUser;
+use MediaWiki\Status\Status;
 use MediaWikiUnitTestCase;
 use MessageLocalizer;
 use Psr\Log\NullLogger;
-use Status;
 
 /**
- * @coversDefaultClass \MediaWiki\Extension\AbuseFilter\Consequences\Consequence\RangeBlock
+ * @covers \MediaWiki\Extension\AbuseFilter\Consequences\Consequence\RangeBlock
  * @covers \MediaWiki\Extension\AbuseFilter\Consequences\Consequence\BlockingConsequence
  */
 class RangeBlockTest extends MediaWikiUnitTestCase {
@@ -29,7 +29,7 @@ class RangeBlockTest extends MediaWikiUnitTestCase {
 
 	private function getMsgLocalizer(): MessageLocalizer {
 		$ml = $this->createMock( MessageLocalizer::class );
-		$ml->method( 'msg' )->willReturnCallback( function ( $k, $p ) {
+		$ml->method( 'msg' )->willReturnCallback( function ( $k, ...$p ) {
 			return $this->getMockMessage( $k, $p );
 		} );
 		return $ml;
@@ -83,8 +83,6 @@ class RangeBlockTest extends MediaWikiUnitTestCase {
 
 	/**
 	 * @dataProvider provideExecute
-	 * @covers ::__construct
-	 * @covers ::execute
 	 */
 	public function testExecute(
 		string $requestIP, array $rangeBlockSize, string $target, bool $result
@@ -126,7 +124,6 @@ class RangeBlockTest extends MediaWikiUnitTestCase {
 	}
 
 	/**
-	 * @covers ::getMessage
 	 * @dataProvider provideGetMessageParameters
 	 */
 	public function testGetMessage( Parameters $params ) {
