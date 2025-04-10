@@ -1,7 +1,6 @@
 {
 	"@metadata": {
 		"authors": [
-			"Amire80",
 			"Bosogo",
 			"Growingup",
 			"Элдин беги"
@@ -102,5 +101,5 @@
 	"abusefilter-diff-title": "Жоромолдордун айырмасы",
 	"abusefilter-diff-item": "Элемент",
 	"abusefilter-diff-info": "Негизги маалымат",
-	"abusefilter-group-default": "Жарыяланбасча"
+	"abusefilter-group-default": "Демейки"
 }
