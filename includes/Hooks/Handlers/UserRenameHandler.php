@@ -18,23 +18,6 @@ class UserRenameHandler implements RenameUserSQLHook {
 			RenameuserSQL::TIME_COL => 'afl_timestamp',
 			'uniqueKey' => 'afl_id'
 		];
-
-		global $wgAbuseFilterActorTableSchemaMigrationStage;
-		if ( !( $wgAbuseFilterActorTableSchemaMigrationStage & SCHEMA_COMPAT_OLD ) ) {
-			return;
-		}
-		$renameUserSql->tablesJob['abuse_filter'] = [
-			RenameuserSQL::NAME_COL => 'af_user_text',
-			RenameuserSQL::UID_COL => 'af_user',
-			RenameuserSQL::TIME_COL => 'af_timestamp',
-			'uniqueKey' => 'af_id'
-		];
-		$renameUserSql->tablesJob['abuse_filter_history'] = [
-			RenameuserSQL::NAME_COL => 'afh_user_text',
-			RenameuserSQL::UID_COL => 'afh_user',
-			RenameuserSQL::TIME_COL => 'afh_timestamp',
-			'uniqueKey' => 'afh_id'
-		];
 	}
 
 }
