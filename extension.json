@@ -518,6 +518,9 @@
 		"UserMerge": {
 			"class": "MediaWiki\\Extension\\AbuseFilter\\Hooks\\Handlers\\UserMergeHandler"
 		},
+		"UserRename": {
+			"class": "MediaWiki\\Extension\\AbuseFilter\\Hooks\\Handlers\\UserRenameHandler"
+		},
 		"ResourceLoader": {
 			"class": "MediaWiki\\Extension\\AbuseFilter\\Hooks\\Handlers\\ResourceLoaderHandler"
 		}
@@ -545,6 +548,7 @@
 		"CheckUserInsertPrivateEventRow": "CheckUser",
 		"CheckUserInsertLogEventRow": "CheckUser",
 		"UserMergeAccountFields": "UserMerge",
+		"RenameUserSQL": "UserRename",
 		"ParserOutputStashForEdit": "FilteredActions",
 		"JsonValidateSave": "EditPermission",
 		"ResourceLoaderRegisterModules": "ResourceLoader"
