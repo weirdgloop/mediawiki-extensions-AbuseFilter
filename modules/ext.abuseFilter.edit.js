@@ -552,6 +552,7 @@
 				switchEditor();
 
 				filterEditor = new CodeMirror( $textarea, abusefilter() );
+				filterEditor.preferences.lockPreference( 'lineWrapping', filterEditor.view, true );
 				filterEditor.initialize();
 				$filterBox.css( 'height', 'auto' );
 
