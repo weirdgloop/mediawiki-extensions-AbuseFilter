@@ -553,6 +553,9 @@
 
 				filterEditor = new CodeMirror( $textarea, abusefilter() );
 				filterEditor.preferences.lockPreference( 'lineWrapping', filterEditor.view, true );
+				if ( readOnly ) {
+					filterEditor.preferences.lockPreference( 'lint' );
+				}
 				filterEditor.initialize();
 				$filterBox.css( 'height', 'auto' );
 
