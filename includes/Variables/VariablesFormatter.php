@@ -3,6 +3,7 @@
 namespace MediaWiki\Extension\AbuseFilter\Variables;
 
 use MediaWiki\Extension\AbuseFilter\KeywordsManager;
+use MediaWiki\Extension\AbuseFilter\ServiceNames;
 use MediaWiki\Html\Html;
 use MessageLocalizer;
 
@@ -10,7 +11,7 @@ use MessageLocalizer;
  * Pretty-prints the content of a VariableHolder for use e.g. in AbuseLog hit details
  */
 class VariablesFormatter {
-	public const SERVICE_NAME = 'AbuseFilterVariablesFormatter';
+	public const SERVICE_NAME = ServiceNames::VariablesFormatter;
 
 	/** @var KeywordsManager */
 	private $keywordsManager;

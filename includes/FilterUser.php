@@ -11,7 +11,7 @@ use MessageLocalizer;
 use Psr\Log\LoggerInterface;
 
 class FilterUser {
-	public const SERVICE_NAME = 'AbuseFilterFilterUser';
+	public const SERVICE_NAME = ServiceNames::FilterUser;
 
 	private MessageLocalizer $messageLocalizer;
 	private UserGroupManager $userGroupManager;

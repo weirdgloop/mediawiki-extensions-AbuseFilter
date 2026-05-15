@@ -10,7 +10,7 @@ use Wikimedia\ObjectCache\BagOStuff;
  */
 class EmergencyCache {
 
-	public const SERVICE_NAME = 'AbuseFilterEmergencyCache';
+	public const SERVICE_NAME = ServiceNames::EmergencyCache;
 
 	/** @var BagOStuff */
 	private $stash;

@@ -5,10 +5,11 @@ namespace MediaWiki\Extension\AbuseFilter\Consequences;
 // phpcs:ignore MediaWiki.Classes.UnusedUseStatement.UnusedUse
 use MediaWiki\Extension\AbuseFilter\Consequences\Consequence\Consequence;
 use MediaWiki\Extension\AbuseFilter\Hooks\AbuseFilterHookRunner;
+use MediaWiki\Extension\AbuseFilter\ServiceNames;
 use RuntimeException;
 
 class ConsequencesRegistry {
-	public const SERVICE_NAME = 'AbuseFilterConsequencesRegistry';
+	public const SERVICE_NAME = ServiceNames::ConsequencesRegistry;
 
 	private const DANGEROUS_ACTIONS = [
 		'block',

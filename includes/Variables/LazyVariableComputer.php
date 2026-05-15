@@ -7,6 +7,7 @@ use MediaWiki\Content\ContentHandler;
 use MediaWiki\Content\TextContent;
 use MediaWiki\Extension\AbuseFilter\Hooks\AbuseFilterHookRunner;
 use MediaWiki\Extension\AbuseFilter\Parser\AFPData;
+use MediaWiki\Extension\AbuseFilter\ServiceNames;
 use MediaWiki\Extension\AbuseFilter\TextExtractor;
 use MediaWiki\ExternalLinks\ExternalLinksLookup;
 use MediaWiki\ExternalLinks\LinkFilter;
@@ -46,7 +47,7 @@ use Wikimedia\Rdbms\SelectQueryBuilder;
  * @internal
  */
 class LazyVariableComputer {
-	public const SERVICE_NAME = 'AbuseFilterLazyVariableComputer';
+	public const SERVICE_NAME = ServiceNames::LazyVariableComputer;
 
 	/**
 	 * @var float The amount of time to subtract from profiling

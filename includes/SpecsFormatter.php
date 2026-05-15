@@ -12,7 +12,7 @@ use MessageLocalizer;
  * @todo Improve this once DI around Message objects is improved in MW core.
  */
 class SpecsFormatter {
-	public const SERVICE_NAME = 'AbuseFilterSpecsFormatter';
+	public const SERVICE_NAME = ServiceNames::SpecsFormatter;
 
 	/** @var MessageLocalizer */
 	private $messageLocalizer;

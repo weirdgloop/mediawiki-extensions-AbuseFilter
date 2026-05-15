@@ -13,7 +13,7 @@ use Wikimedia\ObjectCache\BagOStuff;
  */
 class BlockAutopromoteStore {
 
-	public const SERVICE_NAME = 'AbuseFilterBlockAutopromoteStore';
+	public const SERVICE_NAME = ServiceNames::BlockAutopromoteStore;
 
 	/**
 	 * @var BagOStuff
