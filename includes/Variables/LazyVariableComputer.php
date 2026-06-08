@@ -433,6 +433,11 @@ class LazyVariableComputer {
 					$result = (int)wfTimestamp( TS_UNIX, $asOf ) - (int)wfTimestamp( TS_UNIX, $registration );
 				}
 				break;
+			case 'user-realname':
+				/** @var User $user */
+				$user = $parameters['user'];
+				$result = $user->getRealName();
+				break;
 			case 'page-age':
 				/** @var Title $title */
 				$title = $parameters['title'];

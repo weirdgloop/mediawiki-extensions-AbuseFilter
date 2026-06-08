@@ -401,6 +401,7 @@
 	"abusefilter-edit-builder-vars-user-editcount": "Edit count of the user ($1)",
 	"abusefilter-edit-builder-vars-user-age": "Age of the user account ($1)",
 	"abusefilter-edit-builder-vars-user-unnamed-ip": "IP of the user account (for logged-out users and temporary accounts only) ($1)",
+	"abusefilter-edit-builder-vars-user-realname": "Real name of the user account ($1)",
 	"abusefilter-edit-builder-vars-user-name": "Name of the user account ($1)",
 	"abusefilter-edit-builder-vars-user-type": "Type of the user account ($1)",
 	"abusefilter-edit-builder-vars-user-groups": "Groups (including implicit) the user is in ($1)",
