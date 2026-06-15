@@ -26,6 +26,9 @@ class EditBoxBuilderFactory {
 	/** @var bool */
 	private $isCodeEditorLoaded;
 
+	/** @var bool */
+	private $isCodeMirrorLoaded;
+
 	/**
 	 * @param AbuseFilterPermissionManager $afPermManager
 	 * @param KeywordsManager $keywordsManager
