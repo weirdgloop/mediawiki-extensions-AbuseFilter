@@ -40,6 +40,7 @@ class EditBoxBuilderFactory {
 		$this->afPermManager = $afPermManager;
 		$this->keywordsManager = $keywordsManager;
 		$this->isCodeEditorLoaded = $isCodeEditorLoaded;
+		$this->isCodeMirrorLoaded = $isCodeMirrorLoaded;
 	}
 
 	/**
