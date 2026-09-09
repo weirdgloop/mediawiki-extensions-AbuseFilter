@@ -372,15 +372,18 @@ class FilterLookup implements IDBAccessObject {
 	 * @return string
 	 */
 	private function getGlobalRulesKey( string $group ): string {
-		if ( !$this->centralDBManager->filterIsCentral() ) {
-			return $this->wanCache->makeGlobalKey(
-				'abusefilter-rules',
-				$this->centralDBManager->getCentralDBName(),
-				$group
-			);
-		}
-
-		return $this->wanCache->makeKey( 'abusefilter-rules', $group );
+		// WGL: Upstream builds a local key on the central filter wiki, and tries to invalidate that key by touching
+		//      a check-key. Other wikis use a global key. Global keys are prefixed with the keyword 'global', while
+		//      local keys are prefixed with the local wiki ID. Those keys naturally cannot match.
+		//if ( !$this->centralDBManager->filterIsCentral() ) {
+		return $this->wanCache->makeGlobalKey(
+			'abusefilter-rules',
+			$this->centralDBManager->getCentralDBName(),
+			$group
+		);
+		//}
+		//
+		//return $this->wanCache->makeKey( 'abusefilter-rules', $group );
 	}
 
 	/**
