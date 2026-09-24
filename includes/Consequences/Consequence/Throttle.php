@@ -148,7 +148,7 @@ class Throttle extends Consequence implements ConsequencesDisablerConsequence {
 		$identifier = sha1( implode( ':', $identifiers ) );
 
 		// TODO: Migration strategy to abusefilter-throttle keygroup
-		if ( $this->parameters->getIsGlobalFilter() && !$this->filterIsCentral ) {
+		if ( $this->parameters->getIsGlobalFilter() ) {
 			return $this->mainStash->makeGlobalKey(
 				'abusefilter', 'throttle', $this->centralDB, $this->throttleParams['id'], $identifier
 			);
