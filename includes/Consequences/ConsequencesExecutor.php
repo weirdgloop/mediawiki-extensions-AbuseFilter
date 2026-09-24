@@ -327,7 +327,9 @@ class ConsequencesExecutor {
 
 		$baseConsParams = new Parameters(
 			$filterObj,
-			$isGlobalFilter,
+			// If the local wiki is the central wiki, $isGlobalFilter above will return false even if the filter has
+			// the global flag, so check whether the filter has the flag instead.
+			$filterObj->isGlobal(),
 			$this->specifier
 		);
 
