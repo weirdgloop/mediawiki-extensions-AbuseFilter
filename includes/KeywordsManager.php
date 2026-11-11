@@ -206,6 +206,8 @@ class KeywordsManager {
 			'user_unnamed_ip' => 'user-unnamed-ip',
 			// Generates abusefilter-edit-builder-vars-user-name
 			'user_name' => 'user-name',
+			// Generates abusefilter-edit-builder-vars-user-realname
+			'user_realname' => 'user-realname',
 			// Generates abusefilter-edit-builder-vars-user-type
 			'user_type' => 'user-type',
 			// Generates abusefilter-edit-builder-vars-user-groups
